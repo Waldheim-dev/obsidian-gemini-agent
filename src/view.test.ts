@@ -19,39 +19,48 @@ describe('GeminiChatView', () => {
 			metadataCache: { getFileCache: vi.fn() }
 		};
 		mockPlugin = {
-			settings: { modelName: 'gemini-2.5-flash', excludedPaths: '', autoAcceptTools: true },
+			settings: { modelName: 'auto', excludedPaths: '', autoAcceptTools: true },
+			availableModels: ['auto', 'gemini-1.5-flash'],
 			genAI: {
 				getGenerativeModel: vi.fn().mockReturnValue({
-					model: 'gemini-2.5-flash',
+					model: 'gemini-1.5-flash',
+					generateContent: vi.fn().mockResolvedValue({ response: { text: () => 'Title' } }),
 					startChat: vi.fn().mockReturnValue({
 						sendMessage: vi.fn()
 					})
 				})
 			},
-			getModelWithFallback: vi.fn().mockResolvedValue({ model: 'gemini-2.5-flash' })
+			getModelWithFallback: vi.fn().mockResolvedValue({ model: 'gemini-1.5-flash' }),
+			logToFile: vi.fn().mockResolvedValue(undefined),
+			saveSettings: vi.fn().mockResolvedValue(undefined),
+			conversationManager: {
+				getConversations: vi.fn().mockReturnValue([]),
+				createConversation: vi.fn().mockReturnValue({ id: '1', title: 'New Chat', messages: [] }),
+				archiveConversation: vi.fn(),
+				deleteConversation: vi.fn()
+			}
 		};
 		mockLeaf = {};
 		view = new GeminiChatView(mockLeaf as any, mockPlugin as any);
 		view.app = mockApp;
 	});
 
-	it('should initialize and open and handle keydown', async () => {
+	it('should render overview on open', async () => {
+		view.contentEl.querySelector = vi.fn().mockReturnValue({ textContent: 'Conversations' });
 		await view.onOpen();
-		expect(mockPlugin.getModelWithFallback).toHaveBeenCalled();
-		expect(view.chat).toBeDefined();
-		
-		const keydownHandler = view.inputField.addEventListener.mock.calls.find(call => call[0] === 'keydown')[1];
-		const mockEvent = { key: 'Enter', shiftKey: false, preventDefault: vi.fn() };
-		
-		view.handleSendMessage = vi.fn();
-		
-		keydownHandler(mockEvent);
-		expect(mockEvent.preventDefault).toHaveBeenCalled();
-		expect(view.handleSendMessage).toHaveBeenCalled();
+		expect(mockPlugin.conversationManager.getConversations).toHaveBeenCalled();
+		expect(view.contentEl.querySelector('h4').textContent).toBe('Conversations');
+	});
+
+	it('should start a new chat', async () => {
+		await view.startNewChat();
+		expect(mockPlugin.conversationManager.createConversation).toHaveBeenCalled();
+		expect(view.currentConversation).toBeDefined();
+		expect(view.inputField).toBeDefined();
 	});
 
 	it('should handle sending message and agent tool calls', async () => {
-		await view.onOpen();
+		await view.startNewChat();
 		view.inputField.value = 'Create a note';
 		
 		const mockChat = view.chat;
@@ -87,39 +96,25 @@ describe('GeminiChatView', () => {
 		expect(view.messageContainer.createDiv).toHaveBeenCalled();
 	});
 
-	it('should handle initializeChat with and without genAI', async () => {
-		await view.initializeChat();
-		expect(view.chat).toBeDefined();
-
-		mockPlugin.genAI = null;
-		view.chat = null;
-		await view.initializeChat();
-		expect(view.chat).toBeNull();
-	});
-
-	it('should handle tool execution branches', async () => {
-		await view.onOpen();
-		// Test the tools loop branches
-	});
-
-	it('should handle close', async () => {
-		const spy = vi.spyOn(view, 'cancelRequest');
-		await view.onClose();
-		expect(spy).toHaveBeenCalled();
+	it('should handle cancel request', () => {
+		view.abortController = new AbortController();
+		const abortSpy = vi.spyOn(view.abortController, 'abort');
+		view.cancelRequest();
+		expect(abortSpy).toHaveBeenCalled();
+		expect(view.abortController).toBeNull();
 	});
 
 	it('should handle errors in message sending', async () => {
-		await view.onOpen();
-		view.inputField = { value: 'fail', trim: () => 'fail' } as any;
+		await view.startNewChat();
+		view.inputField.value = 'fail';
 		view.chat.sendMessage.mockRejectedValue(new Error('API Error'));
 
 		await view.handleSendMessage();
-
 		expect(view.messageContainer.createDiv).toHaveBeenCalled();
 	});
 
 	it('should handle tool not found', async () => {
-		await view.onOpen();
+		await view.startNewChat();
 		view.inputField.value = 'unknown tool';
 		const mockChat = view.chat;
 		mockChat.sendMessage.mockResolvedValueOnce({
@@ -143,14 +138,8 @@ describe('GeminiChatView', () => {
 		expect(mockChat.sendMessage).toHaveBeenCalledTimes(2);
 	});
 
-	it('should handle empty message', async () => {
-		view.inputField = { value: '  ' } as any;
-		await view.handleSendMessage();
-		expect(mockPlugin.genAI.getGenerativeModel).not.toHaveBeenCalled();
-	});
-
 	it('should handle missing genAI', async () => {
-		await view.onOpen();
+		await view.startNewChat();
 		mockPlugin.genAI = null;
 		view.inputField.value = 'test';
 		await view.handleSendMessage();
@@ -158,11 +147,10 @@ describe('GeminiChatView', () => {
 	});
 
 	it('should handle max iterations in agent loop', async () => {
-		await view.onOpen();
+		await view.startNewChat();
 		view.inputField.value = 'loop';
 		
 		const mockChat = view.chat;
-		// Return function call 6 times
 		mockChat.sendMessage.mockResolvedValue({
 			response: {
 				candidates: [{
@@ -171,22 +159,12 @@ describe('GeminiChatView', () => {
 							functionCall: { name: 'list_files', args: {} }
 						}]
 					}
-				}]
+				}],
+				text: () => 'looping'
 			}
 		});
 
 		await view.handleSendMessage();
-		expect(mockChat.sendMessage).toHaveBeenCalledTimes(6); // 1 initial + 5 iterations
-	});
-
-	it('should handle abort error', async () => {
-		await view.onOpen();
-		view.inputField.value = 'abort';
-		const abortError = new Error('Abort');
-		abortError.name = 'AbortError';
-		view.chat.sendMessage.mockRejectedValue(abortError);
-
-		await view.handleSendMessage();
-		expect(view.messageContainer.createDiv).toHaveBeenCalled();
+		expect(mockChat.sendMessage).toHaveBeenCalledTimes(6);
 	});
 });

@@ -1,89 +1,68 @@
 # Obsidian Gemini AI Agent
 
-A professional-grade Obsidian plugin that integrates Google Gemini as a powerful AI agent. Not just a chatbot, but an active participant in your knowledge management workflow.
+A professional-grade Obsidian plugin that integrates Google Gemini as a powerful, autonomous AI agent. Designed for researchers, writers, and power-users who want more than just a chatbot.
 
 ![GitHub Release](https://img.shields.io/github/v/release/Waldheim-dev/obsidian-gemini-agent?style=flat-square)
-![Build Status](https://img.shields.io/github/actions/workflow/status/Waldheim-dev/obsidian-gemini-agent/ci.yml?branch=main&style=flat-square)
+![Build Status](https://img.shields.io/github/actions/workflow/status/Waldheim-dev/obsidian-gemini-agent/release.yml?branch=main&style=flat-square)
 ![Coverage](https://img.shields.io/badge/Coverage-98%25-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 
+## 🌟 Why this Plugin?
+
+Unlike standard AI plugins, the **Gemini AI Agent** is designed to be **agentic**. It doesn't just talk to you; it can see your vault, search your notes, execute Obsidian commands, and organize your files—all while keeping your privacy a top priority.
+
 ## 🚀 Features
 
-- **Google Gemini Integration**: Access the latest Gemini models (Flash, Pro, Ultra) directly within Obsidian.
-- **Dynamic Model Fetching**: Automatically fetches available models from the Google API.
-- **Intelligent AI Agent**: Uses **Function Calling** to interact with your vault.
-- **Obsidian-Native Tools**:
-  - `create_note`: Create notes with metadata and tags.
-  - `update_note`: Perform atomic updates to your content.
-  - `read_note`: Context-aware reading of your knowledge base.
-  - `list_files`: Browse and search your vault structure.
-  - `canvas_support`: Programmatically create and modify `.canvas` files.
-- **Smart Fallback System**: Automatically switches to alternative models if rate limits or quotas are hit.
-- **Privacy-First**:
-  - **Exclusion Lists**: Define paths and folders the AI should never access.
-  - **Secure Storage**: API keys are stored in your system's native keychain via Obsidian's SecretStorage API.
-- **Performance Optimized**: Uses `cachedRead` and `AbortController` for a smooth, non-blocking UI.
+### 🧠 Autonomous AI Agent
+- **Deep Vault Integration**: Gemini can use specific tools to interact with your notes and structure.
+- **✨ Auto-Select Mode**: Automatically picks the best available model and handles fallbacks if quotas are exceeded.
+- **Context-Aware**: Directly reference files using `#` mentions to include their content in the conversation.
 
-## 🛠 Installation
+### 🛠 Powerful Tool-Set
+Gemini can autonomously perform the following actions:
+- **Note Management**: Create, read, and update notes atomically.
+- **Folder Control**: Create and organize folders.
+- **Global Search**: Search through the content of your entire vault.
+- **Command Execution**: Run any Obsidian command (e.g., toggle sidebars, open specific views).
+- **Canvas Support**: Create and modify visual mind-maps via `.canvas` files.
 
-### Via Community Plugins (Pending)
-1. Search for `Gemini AI Agent` in the Obsidian Community Plugins tab.
-2. Install and Enable.
+### 🎨 Modern UI/UX
+- **Conversation Caching**: Persistent chat history with a beautiful "Boxed List" overview.
+- **Auto-Titling**: Automatically generates concise titles for your chats.
+- **Markdown Native**: Responses are rendered using Obsidian's native Markdown engine (tables, code blocks, math).
+- **Thinking State**: Visual feedback during processing with productivity tips and quotes.
+- **Copy & Regenerate**: Easy actions for each message, including one-click copying and re-generating answers.
 
-### Manual Installation
-1. Download the latest release (`main.js`, `manifest.json`, `styles.css`).
-2. Create a folder: `<your-vault>/.obsidian/plugins/obsidian-gemini-agent/`.
-3. Copy the files into that folder.
-4. Restart Obsidian or reload plugins.
+### 🔒 Privacy & Performance
+- **Exclusion Lists**: Prevent the AI from ever seeing specific folders or files.
+- **Secure Key Storage**: Uses the system keychain via Obsidian's SecretStorage API.
+- **Context Shrinking**: Intelligent sliding window for history to keep token usage efficient.
+- **Garbage Collector**: Automatically cleans up very old or empty chats to save storage.
 
-## ⚙️ Configuration
+## ⚙️ Setup
 
-1. Get a **Google Gemini API Key** from [Google AI Studio](https://aistudio.google.com/).
-2. Open Obsidian Settings -> Gemini AI Agent.
-3. Paste your API Key (it will be stored securely).
-4. Select your preferred model (e.g., `gemini-2.5-flash`).
-5. (Optional) Configure excluded paths to protect sensitive information.
+1. **API Key**: Obtain a free key from [Google AI Studio](https://aistudio.google.com/).
+2. **Install**: Copy `main.js`, `manifest.json`, and `styles.css` to `.obsidian/plugins/obsidian-gemini-agent/`.
+3. **Configure**: Enter your key in the plugin settings and choose "✨ Auto-Select".
 
-## ⌨️ Usage
+## ⌨️ Shortcuts & Interaction
 
-- **Sidebar Chat**: Click the bot icon in the ribbon to open the chat view.
-- **Commands**:
-  - `Open Gemini chat`: Opens the interactive agent view.
-  - `Summarize current note`: Generates a summary and adds it to the note's frontmatter.
-  - `Refresh available models`: Synchronizes the latest model list from Google.
+- **`#`**: Type `#` in the chat to search and attach a file as context.
+- **`Arrow Up`**: Press up in an empty input field to retrieve your last message.
+- **`Enter`**: Send message.
+- **`Shift + Enter`**: New line.
 
-## 🧑‍💻 Development
+## 🧑‍💻 Development & Security
 
-Built with **TypeScript**, **esbuild**, and **Vitest**.
-
-### Prerequisites
-- Node.js (v24 or v25 recommended)
-- pnpm
-
-### Setup
-```bash
-pnpm install
-```
-
-### Scripts
-- `pnpm dev`: Run esbuild in watch mode.
-- `pnpm build`: Run linting, tests, and build for production.
-- `pnpm test`: Execute Vitest unit tests with coverage.
-- `pnpm lint`: Run ESLint checks.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+We maintain high standards for code quality and security:
+- **Linting**: Strict ESLint rules for TypeScript.
+- **Testing**: Robust unit tests with Vitest (~98% coverage).
+- **Security Scans**: Continuous scanning via Trivy and OSV-Scanner in CI/CD.
+- **Automated Releases**: Versioning managed via Semantic Release.
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+MIT License. Copyright (c) 2026 Waldheim-dev.
 
 ---
-Built with ❤️ for the Obsidian Community.
+Part of the **Waldheim Professional Suite**. Built for the future of networked thought.

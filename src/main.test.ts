@@ -41,6 +41,7 @@ describe('GeminiAgentPlugin', () => {
 		};
 		plugin = new GeminiAgentPlugin(mockApp, { id: 'test' } as any);
 		plugin.app = mockApp;
+		plugin.logToFile = vi.fn().mockResolvedValue(undefined);
 	});
 
 	it('should load settings without secret key', async () => {
@@ -54,7 +55,7 @@ describe('GeminiAgentPlugin', () => {
 	it('should handle missing settings in loadSettings', async () => {
 		plugin.loadData = vi.fn().mockResolvedValue(null);
 		await plugin.loadSettings();
-		expect(plugin.settings.modelName).toBe('gemini-2.5-flash');
+		expect(plugin.settings.modelName).toBe('auto');
 	});
 
 	it('should save settings and secret', async () => {
@@ -124,15 +125,15 @@ describe('GeminiAgentPlugin', () => {
 	it('should activate view (existing leaf)', async () => {
 		const mockLeaf = { setViewState: vi.fn() };
 		mockApp.workspace.getLeavesOfType.mockReturnValue([mockLeaf]);
-		await plugin.activateView();
+		await plugin.activateView(false);
 		expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
 	});
 
 	it('should activate view (new leaf)', async () => {
-		const mockLeaf = { setViewState: vi.fn() };
+		const mockLeaf = { setViewState: vi.fn().mockResolvedValue(undefined) };
 		mockApp.workspace.getLeavesOfType.mockReturnValue([]);
 		mockApp.workspace.getRightLeaf.mockReturnValue(mockLeaf);
-		await plugin.activateView();
+		await plugin.activateView(false);
 		expect(mockLeaf.setViewState).toHaveBeenCalled();
 		expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
 	});

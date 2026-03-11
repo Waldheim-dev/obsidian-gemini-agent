@@ -8,6 +8,11 @@ export interface ObsidianTools {
 	list_files: (args: { folder_path: string }) => Promise<string>;
 	create_canvas: (args: { path: string; nodes: any[] }) => Promise<string>;
 	add_node_to_canvas: (args: { path: string; node: any }) => Promise<string>;
+	create_folder: (args: { path: string }) => Promise<string>;
+	execute_command: (args: { command_id: string }) => Promise<string>;
+	list_commands: () => Promise<string>;
+	global_search: (args: { query: string }) => Promise<string>;
+	get_active_note: () => Promise<string>;
 }
 
 export const getObsidianTools = (app: App, excludedPaths: string[] = []): ObsidianTools => {
@@ -55,7 +60,6 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 			try {
 				const file = app.vault.getAbstractFileByPath(path);
 				if (file && isFile(file)) {
-					// Use cachedRead for better performance
 					return await app.vault.cachedRead(file);
 				}
 				return `Error: File not found at ${path}`;
@@ -81,7 +85,7 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 				const folder = app.vault.getAbstractFileByPath(folder_path || '/');
 				if (folder && isFolder(folder)) {
 					const files = folder.children
-						.filter(f => !isExcluded(f.path)) // Filter excluded files
+						.filter(f => !isExcluded(f.path)) 
 						.map(f => `${isFolder(f) ? '[DIR] ' : ''}${f.path}`)
 						.join('\n');
 					return files || 'Folder is empty or all contents are excluded';
@@ -118,6 +122,71 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 				return `Error: Canvas file not found at ${path}`;
 			} catch (error) {
 				return `Error adding node to canvas: ${error.message}`;
+			}
+		},
+		create_folder: async ({ path }) => {
+			try {
+				await app.vault.createFolder(path);
+				return `Successfully created folder at ${path}`;
+			} catch (error) {
+				return `Error creating folder: ${error.message}`;
+			}
+		},
+		execute_command: async ({ command_id }) => {
+			try {
+				// Accessing internal command manager
+				const commands = (app as any).commands;
+				if (commands && commands.executeCommandById(command_id)) {
+					return `Successfully executed command ${command_id}`;
+				}
+				return `Error: Command ${command_id} not found or failed to execute`;
+			} catch (error) {
+				return `Error executing command: ${error.message}`;
+			}
+		},
+		list_commands: async () => {
+			try {
+				const commands = (app as any).commands;
+				if (!commands || !commands.listCommands) return 'Error: Could not list commands';
+				const list = commands.listCommands()
+					.map((c: any) => `${c.id}: ${c.name}`)
+					.join('\n');
+				return `Available Commands:\n${list}`;
+			} catch (error) {
+				return `Error listing commands: ${error.message}`;
+			}
+		},
+		global_search: async ({ query }) => {
+			try {
+				const files = app.vault.getMarkdownFiles();
+				const results = [];
+				const lowerQuery = query.toLowerCase();
+
+				for (const file of files) {
+					if (isExcluded(file.path)) continue;
+					const content = await app.vault.cachedRead(file);
+					if (content.toLowerCase().includes(lowerQuery)) {
+						results.push(file.path);
+					}
+					if (results.length >= 10) break; // Limit results for context
+				}
+				return results.length > 0 
+					? `Found query in files:\n${results.join('\n')}` 
+					: 'No matches found in the vault';
+			} catch (error) {
+				return `Error searching vault: ${error.message}`;
+			}
+		},
+		get_active_note: async () => {
+			try {
+				const file = app.workspace.getActiveFile();
+				if (file) {
+					const content = await app.vault.read(file);
+					return `Active File: ${file.path}\nContent:\n${content}`;
+				}
+				return 'Error: No active file found';
+			} catch (error) {
+				return `Error getting active file: ${error.message}`;
 			}
 		}
 	}
@@ -204,5 +273,48 @@ export const toolDeclarations = [
 			},
 			required: ["path", "node"]
 		}
+	},
+	{
+		name: "create_folder",
+		description: "Erstellt einen neuen Ordner im Vault",
+		parameters: {
+			type: "object",
+			properties: {
+				path: { type: "string", description: "Der Pfad des neuen Ordners (z.B. 'Projekte/AI-Agent')" }
+			},
+			required: ["path"]
+		}
+	},
+	{
+		name: "execute_command",
+		description: "Führt einen Obsidian-Befehl anhand seiner ID aus (entspricht der Command Palette)",
+		parameters: {
+			type: "object",
+			properties: {
+				command_id: { type: "string", description: "Die ID des Befehls (z.B. 'app:toggle-left-sidebar')" }
+			},
+			required: ["command_id"]
+		}
+	},
+	{
+		name: "list_commands",
+		description: "Listet alle verfügbaren Obsidian-Befehle auf, damit der Agent weiß, was er steuern kann",
+		parameters: { type: "object", properties: {} }
+	},
+	{
+		name: "global_search",
+		description: "Sucht im gesamten Vault nach einem bestimmten Textinhalt (Inhaltssuche)",
+		parameters: {
+			type: "object",
+			properties: {
+				query: { type: "string", description: "Der zu suchende Text" }
+			},
+			required: ["query"]
+		}
+	},
+	{
+		name: "get_active_note",
+		description: "Holt den Pfad und Inhalt der aktuell im Editor geöffneten Notiz",
+		parameters: { type: "object", properties: {} }
 	}
 ];

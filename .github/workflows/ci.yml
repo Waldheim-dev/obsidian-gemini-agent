@@ -38,6 +38,28 @@ jobs:
     - name: Build
       run: pnpm build
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        ignore-unfixed: true
+        format: 'table'
+        exit-code: '1'
+        severity: 'CRITICAL,HIGH'
+
+    - name: Run OSV-Scanner
+      uses: google/osv-scanner-action/scan@v1
+      with:
+        scan-args: |-
+          --recursive
+          ./
+
+
     - name: Upload Build Artifact
       if: matrix.node-version == '24.x'
       uses: actions/upload-artifact@v4

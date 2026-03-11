@@ -1,4 +1,5 @@
 .gemini
 node_modules
 coverage
-./main.js
+./main.jsdeploy.sh
+read-logs.sh
