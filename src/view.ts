@@ -265,7 +265,14 @@ export class GeminiChatView extends ItemView {
 					model: model.model,
 					tools: [{ functionDeclarations: toolDeclarations }] as any
 				});
-				this.chat = modelWithTools.startChat({ history });
+
+				// API only accepts 'role' and 'parts'. Strip 'timestamp' and other local fields.
+				const cleanHistory = history.map(msg => ({
+					role: msg.role,
+					parts: msg.parts
+				}));
+
+				this.chat = modelWithTools.startChat({ history: cleanHistory });
 			} catch (error) {
 				await this.appendMessage('agent', `Error initializing chat: ${error.message}`);
 			}

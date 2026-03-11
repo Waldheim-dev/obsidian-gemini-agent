@@ -1579,7 +1579,11 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
           model: model.model,
           tools: [{ functionDeclarations: toolDeclarations }]
         });
-        this.chat = modelWithTools.startChat({ history });
+        const cleanHistory = history.map((msg) => ({
+          role: msg.role,
+          parts: msg.parts
+        }));
+        this.chat = modelWithTools.startChat({ history: cleanHistory });
       } catch (error) {
         await this.appendMessage("agent", `Error initializing chat: ${error.message}`);
       }
@@ -1710,6 +1714,25 @@ KI: ${aiMsg}`;
     const contentEl = msgEl.createDiv("gemini-message-content");
     if (sender === "agent" && text !== "Thinking..." && !text.includes("Gemini is processing")) {
       await import_obsidian2.MarkdownRenderer.render(this.app, text, contentEl, "", this);
+      const actionsEl = msgEl.createDiv("gemini-message-actions");
+      const copyBtn = actionsEl.createEl("button", { cls: "gemini-action-btn", title: "Copy to clipboard" });
+      copyBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(text);
+        new Notice("Copied to clipboard");
+      };
+      const retryBtn = actionsEl.createEl("button", { cls: "gemini-action-btn", title: "Regenerate" });
+      retryBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>`;
+      retryBtn.onclick = () => {
+        if (this.currentConversation && this.currentConversation.messages.length > 0) {
+          this.currentConversation.messages.pop();
+          const lastUserMsg = this.currentConversation.messages.pop();
+          if (lastUserMsg) {
+            this.inputField.value = lastUserMsg.parts[0].text.split("\nUser request: ").pop() || lastUserMsg.parts[0].text;
+            this.handleSendMessage();
+          }
+        }
+      };
     } else {
       contentEl.textContent = text;
     }
@@ -1802,7 +1825,27 @@ var ConversationManager = class {
     const index = this.conversations.findIndex((c) => c.id === conv.id);
     if (index !== -1) {
       conv.updatedAt = Date.now();
+      if (conv.messages.length > 20) {
+        conv.messages = conv.messages.slice(-20);
+      }
       this.conversations[index] = conv;
+    }
+  }
+  garbageCollect(maxConversations = 50, maxAgeDays = 30) {
+    const now = Date.now();
+    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1e3;
+    this.conversations = this.conversations.filter((c) => {
+      if (c.isArchived) return true;
+      const age = now - c.updatedAt;
+      return age < maxAgeMs;
+    });
+    if (this.conversations.length > maxConversations) {
+      const active = this.conversations.filter((c) => !c.isArchived);
+      const archived = this.conversations.filter((c) => c.isArchived);
+      if (active.length > maxConversations) {
+        const truncatedActive = active.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, maxConversations);
+        this.conversations = [...truncatedActive, ...archived];
+      }
     }
   }
   deleteConversation(id) {
@@ -1848,6 +1891,7 @@ var GeminiAgentPlugin2 = class extends import_obsidian3.Plugin {
   async onload() {
     await this.loadSettings();
     this.conversationManager = new ConversationManager(this.settings);
+    this.conversationManager.garbageCollect();
     await this.logToFile("Plugin loading...");
     await this.refreshModels();
     (0, import_obsidian3.addIcon)("gemini-sparkle", GEMINI_ICON);
