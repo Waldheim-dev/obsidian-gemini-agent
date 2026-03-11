@@ -53,6 +53,10 @@ jobs:
         severity: 'CRITICAL,HIGH'
 
   osv-scan:
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.3
     with:
       scan-args: |-
