@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/Waldheim-dev/obsidian-gemini-agent/compare/1.0.1...1.0.2) (2026-03-11)
+
+
+### Bug Fixes
+
+* use correct Trivy input name and scan-ref ([2a5e0c0](https://github.com/Waldheim-dev/obsidian-gemini-agent/commit/2a5e0c07bb1e9cb325057b9059f673285558153d))
+
 ## [1.0.1](https://github.com/Waldheim-dev/obsidian-gemini-agent/compare/1.0.0...1.0.1) (2026-03-11)
 
 
