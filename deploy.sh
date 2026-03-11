@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-PLUGIN_ID="obsidian-gemini-agent"
+PLUGIN_ID="gemini-ai-agent"
 VAULT_PATH="/mnt/c/Users/mawa/OneDrive/notice/Arbeit"
 TARGET_DIR="${VAULT_PATH}/.obsidian/plugins/${PLUGIN_ID}"
 

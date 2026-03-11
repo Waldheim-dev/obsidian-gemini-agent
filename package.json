@@ -1,6 +1,6 @@
 {
-  "name": "obsidian-gemini-agent",
-  "version": "1.0.0",
+  "name": "gemini-ai-agent",
+  "version": "1.0.3",
   "description": "",
   "main": "index.js",
   "scripts": {

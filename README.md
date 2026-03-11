@@ -42,7 +42,7 @@ Gemini can autonomously perform the following actions:
 ## ⚙️ Setup
 
 1. **API Key**: Obtain a free key from [Google AI Studio](https://aistudio.google.com/).
-2. **Install**: Copy `main.js`, `manifest.json`, and `styles.css` to `.obsidian/plugins/obsidian-gemini-agent/`.
+2. **Install**: Copy `main.js`, `manifest.json`, and `styles.css` to `.obsidian/plugins/gemini-ai-agent/`.
 3. **Configure**: Enter your key in the plugin settings and choose "✨ Auto-Select".
 
 ## ⌨️ Shortcuts & Interaction
