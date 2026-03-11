@@ -26,7 +26,7 @@ export interface ObsidianApp extends App {
 }
 
 export interface ObsidianTools {
-	[key: string]: ((args: any) => Promise<string>) | undefined;
+	[key: string]: ((args: Record<string, unknown>) => Promise<string>) | undefined;
 	create_note: (args: { path: string; content: string; tags?: string[] }) => Promise<string>;
 	update_note: (args: { path: string; new_content: string }) => Promise<string>;
 	read_note: (args: { path: string }) => Promise<string>;

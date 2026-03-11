@@ -7,12 +7,18 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-empty-function': 'off',
       'no-console': 'off',
     },
   },
   {
-    ignores: ['node_modules/', 'main.js', 'dist/', 'coverage/'],
+    files: ['**/*.test.ts', '__mocks__/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    }
+  },
+  {
+    ignores: ['node_modules/', 'main.js', 'dist/', 'coverage/', 'obsidian-releases/'],
   }
 );
