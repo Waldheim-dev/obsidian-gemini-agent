@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/Waldheim-dev/obsidian-gemini-agent/compare/1.0.0...1.0.1) (2026-03-11)
+
+
+### Bug Fixes
+
+* correct OSV-Scanner action path for v2 ([b0e739a](https://github.com/Waldheim-dev/obsidian-gemini-agent/commit/b0e739a2b55e8bb48d88a0e640677769c8c93968))
+
 # 1.0.0 (2026-03-11)
 
 
