@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/Waldheim-dev/obsidian-gemini-agent/compare/v1.0.0...v1.0.1) (2026-03-11)
+
+
+### Bug Fixes
+
+* resolve 400 error by stripping timestamp from API payload and improve UI aesthetics ([a249ee8](https://github.com/Waldheim-dev/obsidian-gemini-agent/commit/a249ee8b20db021fc6e2ad0182e1fe890e2862f2))
+
 # 1.0.0 (2026-03-11)
 
 
