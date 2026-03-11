@@ -28,12 +28,17 @@ describe('GeminiAgentPlugin', () => {
 			workspace: {
 				getActiveFile: vi.fn(),
 				getLeavesOfType: vi.fn().mockReturnValue([]),
+				getLeaf: vi.fn().mockReturnValue({ setViewState: vi.fn() }),
 				getRightLeaf: vi.fn().mockReturnValue({ setViewState: vi.fn() }),
 				revealLeaf: vi.fn(),
 				detachLeavesOfType: vi.fn()
 			},
 			vault: {
-				read: vi.fn().mockResolvedValue('Content')
+				read: vi.fn().mockResolvedValue('Content'),
+				adapter: {
+					exists: vi.fn().mockResolvedValue(false),
+					write: vi.fn().mockResolvedValue(undefined)
+				}
 			},
 			fileManager: {
 				processFrontMatter: vi.fn()
@@ -59,7 +64,7 @@ describe('GeminiAgentPlugin', () => {
 	});
 
 	it('should save settings and secret', async () => {
-		plugin.settings = { apiKey: 'new-key', modelName: 'm1', excludedPaths: '', autoAcceptTools: true };
+		plugin.settings = { apiKey: 'new-key', modelName: 'm1', excludedPaths: '', autoAcceptTools: true, conversations: [] };
 		await plugin.saveSettings();
 
 		expect(plugin.saveData).toHaveBeenCalledWith(plugin.settings);
@@ -68,14 +73,14 @@ describe('GeminiAgentPlugin', () => {
 	});
 
 	it('should save settings and handle empty API key', async () => {
-		plugin.settings = { apiKey: '', modelName: 'm1', excludedPaths: '', autoAcceptTools: true };
+		plugin.settings = { apiKey: '', modelName: 'm1', excludedPaths: '', autoAcceptTools: true, conversations: [] };
 		await plugin.saveSettings();
 		expect(mockApp.secretStorage.setSecret).toHaveBeenCalledWith('gemini-api-key', '');
 		expect(plugin.genAI).toBeNull();
 	});
 
 	it('should summarize current note', async () => {
-		plugin.settings = { modelName: 'm1', apiKey: 'k', excludedPaths: '', autoAcceptTools: true };
+		plugin.settings = { modelName: 'm1', apiKey: 'k', excludedPaths: '', autoAcceptTools: true, conversations: [] };
 		plugin.genAI = { getGenerativeModel: vi.fn() } as any;
 		const mockModel = { generateContent: vi.fn().mockResolvedValue({ response: { text: () => 'Summary' } }) };
 		(plugin.genAI.getGenerativeModel as any).mockReturnValue(mockModel);
@@ -93,7 +98,7 @@ describe('GeminiAgentPlugin', () => {
 		plugin.genAI = null;
 		const mockFile = { basename: 'test' };
 		await plugin.summarizeNote(mockFile as any);
-		expect(Notice).toHaveBeenCalledWith('Gemini API Key not configured');
+		expect(Notice).toHaveBeenCalledWith('Gemini API key not configured');
 	});
 
 	it('should run onload', async () => {
@@ -109,8 +114,7 @@ describe('GeminiAgentPlugin', () => {
 		plugin.settings = Object.assign({}, DEFAULT_SETTINGS);
 		const tab = new GeminiAgentSettingTab(mockApp, plugin);
 		tab.containerEl = document.createElement('div');
-		(tab.containerEl as any).empty = vi.fn();
-		(tab.containerEl as any).createEl = vi.fn();
+		tab.containerEl.empty = vi.fn();
 		
 		plugin.saveSettings = vi.fn().mockResolvedValue(undefined);
 
@@ -145,7 +149,7 @@ describe('GeminiAgentPlugin', () => {
 	});
 
 	it('should handle frontmatter update error in summarizeNote', async () => {
-		plugin.settings = { modelName: 'm1', apiKey: 'k', excludedPaths: '', autoAcceptTools: true };
+		plugin.settings = { modelName: 'm1', apiKey: 'k', excludedPaths: '', autoAcceptTools: true, conversations: [] };
 		plugin.genAI = { getGenerativeModel: vi.fn().mockReturnValue({
 			generateContent: vi.fn().mockResolvedValue({ response: { text: () => 'Summary' } })
 		}) } as any;
@@ -186,6 +190,6 @@ describe('GeminiAgentPlugin', () => {
 
 	it('should cover unload', () => {
 		plugin.onunload();
-		expect(mockApp.workspace.detachLeavesOfType).toHaveBeenCalled();
+		// No longer calls detachLeavesOfType, so we just check it runs without error
 	});
 });

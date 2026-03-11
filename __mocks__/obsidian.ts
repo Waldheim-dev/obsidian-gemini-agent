@@ -2,6 +2,10 @@ import { vi } from 'vitest';
 
 export const Notice = vi.fn();
 export const addIcon = vi.fn();
+export const setIcon = vi.fn();
+export const requestUrl = vi.fn().mockResolvedValue({
+	json: { models: [] }
+});
 
 const createMockElement = (tag?: string, options?: any) => {
 	const children: any[] = [];
@@ -54,13 +58,25 @@ const createMockElement = (tag?: string, options?: any) => {
 			return el;
 		}),
 		inputEl: { type: '' },
-		style: { height: '' },
+		style: {
+			height: '',
+			setProperty: vi.fn().mockImplementation((prop, val) => {
+				if (prop === 'height') el.style.height = val;
+			})
+		},
 		scrollTop: 0,
 		scrollHeight: 0,
 		_tag: tag,
-		_cls: typeof options === 'object' ? options?.cls : ''
+		_cls: typeof options === 'object' ? options?.cls : '',
+		firstElementChild: null as any
 	};
 	el.inputEl = el; // For Setting component compatibility
+	
+	// Mock firstElementChild to be the first child if it exists
+	Object.defineProperty(el, 'firstElementChild', {
+		get: () => children[0] || null
+	});
+
 	return el;
 };
 
@@ -95,6 +111,7 @@ export class Setting {
 	constructor(public containerEl: HTMLElement) {}
 	setName = vi.fn().mockReturnThis();
 	setDesc = vi.fn().mockReturnThis();
+	setHeading = vi.fn().mockReturnThis();
 	addText = vi.fn().mockImplementation((cb: any) => {
 		const el = createMockElement();
 		el.onChange.mockImplementation((changeCb: any) => {

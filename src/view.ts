@@ -53,38 +53,38 @@ export class GeminiChatView extends ItemView {
 	getDisplayText() {
 		return "Gemini chat";
 	}
-onClose() {
-	this.cancelRequest();
-	return Promise.resolve();
-}
 
-cancelRequest() {
-	if (this.abortController) {
-		this.abortController.abort();
-		this.abortController = null;
+	onClose() {
+		this.cancelRequest();
+		return Promise.resolve();
 	}
-	this.setLoading(false);
-}
 
-setLoading(loading: boolean) {
-	this.isLoading = loading;
-	if (loading) {
-		this.containerEl.addClass('is-loading');
-	} else {
-		this.containerEl.removeClass('is-loading');
+	cancelRequest() {
+		if (this.abortController) {
+			this.abortController.abort();
+			this.abortController = null;
+		}
+		this.setLoading(false);
 	}
-}
 
-async onOpen() {
-	this.renderOverview();
-}
+	setLoading(loading: boolean) {
+		this.isLoading = loading;
+		if (loading) {
+			this.containerEl.addClass('is-loading');
+		} else {
+			this.containerEl.removeClass('is-loading');
+		}
+	}
 
-renderOverview() {
-	const container = this.contentEl;
-	container.empty();
-	container.addClass('gemini-chat-view-container');
-... (rest of the method)
-}
+	async onOpen() {
+		this.renderOverview();
+	}
+
+	renderOverview() {
+		const container = this.contentEl;
+		container.empty();
+		container.addClass('gemini-chat-view-container');
+
 		const header = container.createDiv('gemini-chat-header');
 		header.createEl('h4', { text: 'Conversations' });
 		
@@ -360,7 +360,8 @@ renderOverview() {
 							toolStatus.textContent = `Executing tool: ${name}...`;
 							
 							const toolFunction = tools[name];
-							const resultText = toolFunction ? await toolFunction(args) : `Tool ${name} not found`;							toolResults.push({
+							const resultText = toolFunction ? await toolFunction(args) : `Tool ${name} not found`;
+							toolResults.push({
 								functionResponse: { name, response: { result: resultText } }
 							});
 						}
