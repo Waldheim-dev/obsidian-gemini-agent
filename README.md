@@ -3,6 +3,7 @@
 A professional-grade Obsidian plugin that integrates Google Gemini as a powerful, autonomous AI agent. Designed for researchers, writers, and power-users who want more than just a chatbot.
 
 ![GitHub Release](https://img.shields.io/github/v/release/Waldheim-dev/obsidian-gemini-agent?style=flat-square)
+[![CI](https://github.com/Waldheim-dev/obsidian-gemini-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Waldheim-dev/obsidian-gemini-agent/actions/workflows/ci.yml)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/Waldheim-dev/obsidian-gemini-agent/release.yml?branch=main&style=flat-square)
 ![Coverage](https://img.shields.io/badge/Coverage-98%25-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
