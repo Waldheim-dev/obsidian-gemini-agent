@@ -38,7 +38,7 @@ jobs:
     - name: Build
       run: pnpm build
 
-  security:
+  trivy-scan:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -52,16 +52,30 @@ jobs:
         exit-code: '1'
         severity: 'CRITICAL,HIGH'
 
-    - name: Run OSV-Scanner
-      uses: google/osv-scanner-action@v2.3.3
+  osv-scan:
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.3
+    with:
+      scan-args: |-
+        --recursive
+        ./
+
+  upload-artifacts:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+    - name: Use Node.js 24.x
+      uses: actions/setup-node@v4
       with:
-        scan-args: |-
-          --recursive
-          ./
-
-
+        node-version: 24.x
+        cache: 'pnpm'
+    - name: Install dependencies
+      run: pnpm install
+    - name: Build
+      run: pnpm build
     - name: Upload Build Artifact
-      if: matrix.node-version == '24.x'
       uses: actions/upload-artifact@v4
       with:
         name: obsidian-gemini-agent
