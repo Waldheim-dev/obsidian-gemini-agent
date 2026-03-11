@@ -3,7 +3,7 @@
 	"name": "Gemini AI Agent",
 	"version": "1.0.0",
 	"minAppVersion": "1.11.0",
-	"description": "Integration von Google Gemini als KI-Agent in Obsidian.",
+	"description": "Integrated Google Gemini as a powerful AI agent to interact with your vault, execute commands, and organize notes.",
 	"author": "Waldheim-dev",
 	"authorUrl": "https://github.com/Waldheim-dev",
 	"fundingUrl": "https://github.com/sponsors/Waldheim-dev",
