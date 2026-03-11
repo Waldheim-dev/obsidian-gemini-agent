@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/Waldheim-dev/obsidian-gemini-agent/compare/v1.0.2...v1.0.3) (2026-03-11)
+
+
+### Bug Fixes
+
+* use specific version for Trivy action ([75d8810](https://github.com/Waldheim-dev/obsidian-gemini-agent/commit/75d8810379da4293743f7e6f9e9469a6684a72e8))
+
 ## [1.0.2](https://github.com/Waldheim-dev/obsidian-gemini-agent/compare/v1.0.1...v1.0.2) (2026-03-11)
 
 
