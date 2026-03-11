@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
+import { Part } from "@google/generative-ai";
 
 export interface ChatMessage {
 	role: 'user' | 'model';
-	parts: any[];
+	parts: Part[];
 	timestamp: number;
 }
 
@@ -18,7 +19,7 @@ export interface Conversation {
 export class ConversationManager {
 	private conversations: Conversation[] = [];
 
-	constructor(data: any) {
+	constructor(data: { conversations?: Conversation[] } | undefined) {
 		if (data && Array.isArray(data.conversations)) {
 			this.conversations = data.conversations;
 		}

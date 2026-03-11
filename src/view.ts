@@ -1,8 +1,9 @@
-import { ItemView, WorkspaceLeaf, MarkdownRenderer, TFile } from 'obsidian';
+import { ItemView, WorkspaceLeaf, MarkdownRenderer, TFile, setIcon, Notice } from 'obsidian';
 import GeminiAgentPlugin, { MODEL_DISPLAY_NAMES, VIEW_TYPE_GEMINI_CHAT } from './main';
 import { getObsidianTools, toolDeclarations } from './tools';
 import { Conversation } from './conversations';
 import { FileSuggestModal } from './suggest';
+import { ChatSession, Content, Part } from "@google/generative-ai";
 
 const THINKING_TIPS = [
 	"Tip: Use # to attach a file for more context.",
@@ -28,20 +29,21 @@ export class GeminiChatView extends ItemView {
 	plugin: GeminiAgentPlugin;
 	messageContainer: HTMLDivElement;
 	inputField: HTMLTextAreaElement;
-	chat: any; // ChatSession from @google/generative-ai
+	chat: ChatSession | null = null;
 	abortController: AbortController | null = null;
 	isLoading = false;
 	currentConversation: Conversation | null = null;
 	searchQuery = '';
 	showArchived = false;
 	lastUserMessage = '';
+	headerTitleEl: HTMLElement;
 
 	constructor(leaf: WorkspaceLeaf, plugin: GeminiAgentPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 		this.navigation = true;
 		this.icon = 'gemini-sparkle';
-		console.log('Gemini: View instance created');
+		console.debug('Gemini: view instance created');
 	}
 
 	getViewType() {
@@ -51,37 +53,38 @@ export class GeminiChatView extends ItemView {
 	getDisplayText() {
 		return "Gemini chat";
 	}
+onClose() {
+	this.cancelRequest();
+	return Promise.resolve();
+}
 
-	async onClose() {
-		this.cancelRequest();
+cancelRequest() {
+	if (this.abortController) {
+		this.abortController.abort();
+		this.abortController = null;
 	}
+	this.setLoading(false);
+}
 
-	cancelRequest() {
-		if (this.abortController) {
-			this.abortController.abort();
-			this.abortController = null;
-		}
-		this.setLoading(false);
+setLoading(loading: boolean) {
+	this.isLoading = loading;
+	if (loading) {
+		this.containerEl.addClass('is-loading');
+	} else {
+		this.containerEl.removeClass('is-loading');
 	}
+}
 
-	setLoading(loading: boolean) {
-		this.isLoading = loading;
-		if (loading) {
-			this.containerEl.addClass('is-loading');
-		} else {
-			this.containerEl.removeClass('is-loading');
-		}
-	}
+async onOpen() {
+	this.renderOverview();
+}
 
-	async onOpen() {
-		await this.renderOverview();
-	}
-
-	async renderOverview() {
-		const container = this.contentEl;
-		container.empty();
-		container.addClass('gemini-chat-view-container');
-
+renderOverview() {
+	const container = this.contentEl;
+	container.empty();
+	container.addClass('gemini-chat-view-container');
+... (rest of the method)
+}
 		const header = container.createDiv('gemini-chat-header');
 		header.createEl('h4', { text: 'Conversations' });
 		
@@ -91,15 +94,15 @@ export class GeminiChatView extends ItemView {
 			cls: 'clickable-icon' + (this.showArchived ? ' is-active' : ''), 
 			title: 'Show archived' 
 		});
-		archiveToggle.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg>`;
+		setIcon(archiveToggle, 'archive');
 		archiveToggle.onclick = () => {
 			this.showArchived = !this.showArchived;
 			this.renderOverview();
 		};
 
 		const newChatBtn = headerActions.createEl('button', { cls: 'clickable-icon', title: 'New chat' });
-		newChatBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-		newChatBtn.onclick = () => this.startNewChat();
+		setIcon(newChatBtn, 'plus');
+		newChatBtn.onclick = () => void this.startNewChat();
 
 		const searchContainer = container.createDiv('gemini-search-container');
 		const searchInput = searchContainer.createEl('input', {
@@ -134,14 +137,12 @@ export class GeminiChatView extends ItemView {
 			info.createDiv({ text: conv.title, cls: 'gemini-conv-title' });
 			info.createDiv({ text: new Date(conv.updatedAt).toLocaleString(), cls: 'gemini-conv-date' });
 			
-			info.onclick = () => this.loadConversation(conv);
+			info.onclick = () => void this.loadConversation(conv);
 
 			const actions = item.createDiv('gemini-conv-actions');
 			
 			const archiveBtn = actions.createEl('button', { cls: 'clickable-icon', title: conv.isArchived ? 'Unarchive' : 'Archive' });
-			archiveBtn.innerHTML = conv.isArchived 
-				? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`
-				: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>`;
+			setIcon(archiveBtn, conv.isArchived ? 'eye' : 'archive');
 			archiveBtn.onclick = async (e) => {
 				e.stopPropagation();
 				this.plugin.conversationManager.archiveConversation(conv.id, !conv.isArchived);
@@ -150,14 +151,13 @@ export class GeminiChatView extends ItemView {
 			};
 
 			const deleteBtn = actions.createEl('button', { cls: 'clickable-icon', title: 'Delete' });
-			deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+			setIcon(deleteBtn, 'trash-2');
 			deleteBtn.onclick = async (e) => {
 				e.stopPropagation();
-				if (confirm('Delete this conversation?')) {
-					this.plugin.conversationManager.deleteConversation(conv.id);
-					await this.plugin.saveSettings();
-					this.renderConversationList(container);
-				}
+				this.plugin.conversationManager.deleteConversation(conv.id);
+				await this.plugin.saveSettings();
+				this.renderConversationList(container);
+				new Notice('Conversation deleted');
 			};
 		});
 	}
@@ -166,13 +166,13 @@ export class GeminiChatView extends ItemView {
 		this.currentConversation = this.plugin.conversationManager.createConversation();
 		this.currentConversation.model = this.plugin.settings.modelName;
 		await this.plugin.saveSettings();
-		await this.renderChatInterface();
+		this.renderChatInterface();
 		await this.initializeChat();
 	}
 
 	async loadConversation(conv: Conversation) {
 		this.currentConversation = conv;
-		await this.renderChatInterface();
+		this.renderChatInterface();
 		
 		for (const msg of conv.messages) {
 			let displayContent = msg.parts[0].text;
@@ -188,16 +188,16 @@ export class GeminiChatView extends ItemView {
 		})));
 	}
 
-	async renderChatInterface() {
+	renderChatInterface() {
 		const container = this.contentEl;
 		container.empty();
 
 		const header = container.createDiv('gemini-chat-header');
 		const backBtn = header.createEl('button', { cls: 'clickable-icon', title: 'Back to overview' });
-		backBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>`;
+		setIcon(backBtn, 'arrow-left');
 		backBtn.onclick = () => this.renderOverview();
 
-		header.createEl('h4', { text: this.currentConversation?.title || 'Gemini AI Agent', cls: 'gemini-header-title' });
+		this.headerTitleEl = header.createEl('h4', { text: this.currentConversation?.title || 'Gemini AI Agent', cls: 'gemini-header-title' });
 
 		const modelSelect = header.createEl('select', { cls: 'gemini-model-select-ui' });
 		this.plugin.availableModels.forEach(mId => {
@@ -223,8 +223,8 @@ export class GeminiChatView extends ItemView {
 		});
 
 		this.inputField.addEventListener('input', () => {
-			this.inputField.style.height = 'auto';
-			this.inputField.style.height = this.inputField.scrollHeight + 'px';
+			this.inputField.style.setProperty('height', 'auto');
+			this.inputField.style.setProperty('height', this.inputField.scrollHeight + 'px');
 		});
 
 		this.inputField.addEventListener('keydown', (e) => {
@@ -252,18 +252,18 @@ export class GeminiChatView extends ItemView {
 		});
 
 		const sendButton = inputContainer.createEl('button', { cls: 'gemini-send-button', title: 'Send' });
-		sendButton.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
-		sendButton.onclick = () => this.handleSendMessage();
+		setIcon(sendButton, 'send');
+		sendButton.onclick = () => void this.handleSendMessage();
 	}
 
-	async initializeChat(history: any[] = []) {
+	async initializeChat(history: Content[] = []) {
 		if (this.plugin.genAI) {
 			try {
 				const modelId = this.currentConversation?.model || this.plugin.settings.modelName;
 				const model = await this.plugin.getModelWithFallback(modelId);
 				const modelWithTools = this.plugin.genAI.getGenerativeModel({ 
 					model: model.model,
-					tools: [{ functionDeclarations: toolDeclarations }] as any
+					tools: [{ functionDeclarations: toolDeclarations }]
 				});
 
 				// API only accepts 'role' and 'parts'. Strip 'timestamp' and other local fields.
@@ -274,7 +274,7 @@ export class GeminiChatView extends ItemView {
 
 				this.chat = modelWithTools.startChat({ history: cleanHistory });
 			} catch (error) {
-				await this.appendMessage('agent', `Error initializing chat: ${error.message}`);
+				await this.appendMessage('agent', `Error initializing chat: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}
 	}
@@ -309,7 +309,7 @@ export class GeminiChatView extends ItemView {
 		});
 
 		this.inputField.value = '';
-		this.inputField.style.height = 'auto';
+		this.inputField.style.setProperty('height', 'auto');
 
 		if (!this.plugin.genAI) {
 			await this.appendMessage('agent', 'Error: API Key not configured.');
@@ -326,76 +326,77 @@ export class GeminiChatView extends ItemView {
 		
 		const thinkingMsg = await this.appendMessage('agent', 'Thinking...');
 		thinkingMsg.addClass('gemini-thinking-wrapper');
-		const contentEl = thinkingMsg.querySelector('.gemini-message-content')!;
-		contentEl.empty();
-		
-		const thinkingContainer = contentEl.createDiv('gemini-thinking-container');
-		thinkingContainer.createDiv('gemini-thinking-shimmer').textContent = 'Gemini is processing your request...';
-		
-		const infoPanel = thinkingContainer.createDiv('gemini-thinking-info');
-		infoPanel.createDiv('gemini-thinking-tip').textContent = randomTip;
-		infoPanel.createDiv('gemini-thinking-quote').textContent = randomQuote;
-		
-		const toolStatus = thinkingContainer.createDiv('gemini-tool-status');
-
-		try {
-			this.abortController = new AbortController();
-			let result = await this.chat.sendMessage(finalPrompt);
-			let response = await result.response;
+		const contentEl = thinkingMsg.firstElementChild as HTMLElement;
+		if (contentEl) {
+			contentEl.empty();
 			
-			let iterations = 0;
-			const MAX_ITERATIONS = 5;
+			const thinkingContainer = contentEl.createDiv('gemini-thinking-container');
+			thinkingContainer.createDiv('gemini-thinking-shimmer').textContent = 'Gemini is processing your request...';
+			
+			const infoPanel = thinkingContainer.createDiv('gemini-thinking-info');
+			infoPanel.createDiv('gemini-thinking-tip').textContent = randomTip;
+			infoPanel.createDiv('gemini-thinking-quote').textContent = randomQuote;
+			
+			const toolStatus = thinkingContainer.createDiv('gemini-tool-status');
 
-			while (iterations < MAX_ITERATIONS && response.candidates[0].content.parts.some((part: any) => !!part.functionCall)) {
-				iterations++;
-				const toolResults = [];
-				const excludedPaths = this.plugin.settings.excludedPaths.split(',').filter(p => p.trim() !== '');
-				const tools = getObsidianTools(this.app, excludedPaths);
+			try {
+				this.abortController = new AbortController();
+				let result = await this.chat.sendMessage(finalPrompt);
+				let response = await result.response;
 				
-				for (const part of response.candidates[0].content.parts) {
-					if (part.functionCall) {
-						const name = part.functionCall.name;
-						const args = part.functionCall.args;
-						toolStatus.textContent = `Executing tool: ${name}...`;
-						
-						const toolFunction = (tools as any)[name];
-						const resultText = toolFunction ? await toolFunction(args) : `Tool ${name} not found`;
-						toolResults.push({
-							functionResponse: { name, response: { result: resultText } }
-						});
+				let iterations = 0;
+				const MAX_ITERATIONS = 5;
+
+				while (iterations < MAX_ITERATIONS && response.candidates && response.candidates[0].content.parts.some((part: Part) => !!part.functionCall)) {
+					iterations++;
+					const toolResults = [];
+					const excludedPaths = this.plugin.settings.excludedPaths.split(',').filter(p => p.trim() !== '');
+					const tools = getObsidianTools(this.app, excludedPaths);
+					
+					for (const part of response.candidates[0].content.parts) {
+						if (part.functionCall) {
+							const name = part.functionCall.name;
+							const args = part.functionCall.args;
+							toolStatus.textContent = `Executing tool: ${name}...`;
+							
+							const toolFunction = tools[name];
+							const resultText = toolFunction ? await toolFunction(args) : `Tool ${name} not found`;							toolResults.push({
+								functionResponse: { name, response: { result: resultText } }
+							});
+						}
+					}
+					result = await this.chat.sendMessage(toolResults);
+					response = await result.response;
+				}
+
+				const responseText = response.text();
+				thinkingMsg.remove();
+
+				if (responseText) {
+					await this.appendMessage('agent', responseText);
+					this.currentConversation.messages.push({
+						role: 'model',
+						parts: [{ text: responseText }],
+						timestamp: Date.now()
+					});
+
+					if (this.currentConversation.title === 'New Chat') {
+						await this.generateAutoTitle(originalMessage, responseText);
 					}
 				}
-				result = await this.chat.sendMessage(toolResults);
-				response = await result.response;
-			}
-
-			const responseText = response.text();
-			thinkingMsg.remove();
-
-			if (responseText) {
-				await this.appendMessage('agent', responseText);
-				this.currentConversation.messages.push({
-					role: 'model',
-					parts: [{ text: responseText }],
-					timestamp: Date.now()
-				});
-
-				if (this.currentConversation.title === 'New Chat') {
-					await this.generateAutoTitle(originalMessage, responseText);
+				
+				await this.plugin.saveSettings();
+			} catch (error) {
+				if (thinkingMsg) thinkingMsg.remove();
+				if (error.name === 'AbortError') {
+					await this.appendMessage('agent', '_Request cancelled_');
+				} else {
+					await this.appendMessage('agent', `**Error:** ${error.message}`);
 				}
+			} finally {
+				this.abortController = null;
+				this.setLoading(false);
 			}
-			
-			await this.plugin.saveSettings();
-		} catch (error) {
-			if (thinkingMsg) thinkingMsg.remove();
-			if (error.name === 'AbortError') {
-				await this.appendMessage('agent', '_Request cancelled_');
-			} else {
-				await this.appendMessage('agent', `**Error:** ${error.message}`);
-			}
-		} finally {
-			this.abortController = null;
-			this.setLoading(false);
 		}
 	}
 
@@ -408,8 +409,7 @@ export class GeminiChatView extends ItemView {
 			const title = result.response.text().trim();
 			if (title) {
 				this.currentConversation.title = title;
-				const titleEl = this.contentEl.querySelector('.gemini-header-title');
-				if (titleEl) titleEl.textContent = title;
+				if (this.headerTitleEl) this.headerTitleEl.textContent = title;
 				await this.plugin.saveSettings();
 			}
 		} catch (e) {
@@ -428,14 +428,14 @@ export class GeminiChatView extends ItemView {
 			const actionsEl = msgEl.createDiv('gemini-message-actions');
 			
 			const copyBtn = actionsEl.createEl('button', { cls: 'gemini-action-btn', title: 'Copy to clipboard' });
-			copyBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+			setIcon(copyBtn, 'copy');
 			copyBtn.onclick = () => {
 				navigator.clipboard.writeText(text);
 				new Notice('Copied to clipboard');
 			};
 
 			const retryBtn = actionsEl.createEl('button', { cls: 'gemini-action-btn', title: 'Regenerate' });
-			retryBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>`;
+			setIcon(retryBtn, 'refresh-cw');
 			retryBtn.onclick = () => {
 				// Remove last AI message and re-send last user message
 				if (this.currentConversation && this.currentConversation.messages.length > 0) {
