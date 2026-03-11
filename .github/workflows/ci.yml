@@ -47,7 +47,8 @@ jobs:
       uses: aquasecurity/trivy-action@0.33.0
       with:
         scan-type: 'fs'
-        trivy-version: '0.69.2'
+        scan-ref: '.'
+        version: 'v0.69.2'
         ignore-unfixed: true
         format: 'table'
         exit-code: '1'
