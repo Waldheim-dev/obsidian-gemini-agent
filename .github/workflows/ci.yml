@@ -53,7 +53,7 @@ jobs:
         severity: 'CRITICAL,HIGH'
 
     - name: Run OSV-Scanner
-      uses: google/osv-scanner-action/scan@v2.3.3
+      uses: google/osv-scanner-action@v2.3.3
       with:
         scan-args: |-
           --recursive
