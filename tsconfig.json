@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"module": "ESNext",
+		"target": "ES2022",
+		"lib": ["DOM", "ES2022"],
+		"moduleResolution": "Node",
+		"allowSyntheticDefaultImports": true,
+		"experimentalDecorators": true,
+		"noImplicitAny": true,
+		"sourceMap": true,
+		"inlineSourceMap": true,
+		"baseUrl": ".",
+		"paths": {
+			"*": ["node_modules/*"]
+		},
+		"types": ["node"]
+	},
+	"include": ["src/**/*.ts"]
+}

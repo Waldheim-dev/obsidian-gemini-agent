@@ -1,0 +1,54 @@
+.gemini-chat-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 10px;
+}
+
+.gemini-chat-messages {
+	flex-grow: 1;
+	overflow-y: auto;
+	margin-bottom: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.gemini-message {
+	padding: 8px 12px;
+	border-radius: 8px;
+	max-width: 90%;
+	word-wrap: break-word;
+}
+
+.gemini-message-user {
+	align-self: flex-end;
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.gemini-message-agent {
+	align-self: flex-start;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.gemini-message-content {
+	margin-top: 4px;
+	white-space: pre-wrap;
+}
+
+.gemini-chat-input-container {
+	display: flex;
+	gap: 8px;
+}
+
+.gemini-chat-input {
+	flex-grow: 1;
+	resize: none;
+	height: 60px;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+}

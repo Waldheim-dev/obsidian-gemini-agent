@@ -1,0 +1,4 @@
+.gemini
+node_modules
+coverage
+./main.js

@@ -1,0 +1,10 @@
+{
+	"id": "obsidian-gemini-agent",
+	"name": "Gemini AI Agent",
+	"version": "1.0.0",
+	"minAppVersion": "1.11.0",
+	"description": "Integration von Google Gemini als KI-Agent in Obsidian.",
+	"author": "Obsidian Gemini Agent Development Team",
+	"authorUrl": "https://obsidian.md",
+	"isDesktopOnly": false
+}
