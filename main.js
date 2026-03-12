@@ -1106,12 +1106,28 @@ ${content}` : content;
         return Promise.resolve(`Error getting metadata: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
-    list_files: ({ folder_path }) => {
+    list_files: ({ folder_path, recursive }) => {
       try {
         const folder = app.vault.getAbstractFileByPath(folder_path || "/");
         if (folder && isFolder(folder)) {
-          const files = folder.children.filter((f) => !isExcluded(f.path)).map((f) => `${isFolder(f) ? "[DIR] " : ""}${f.path}`).join("\n");
-          return Promise.resolve(files || "Folder is empty or all contents are excluded");
+          const results = [];
+          const walk = (f) => {
+            if (isExcluded(f.path)) return;
+            results.push(`${isFolder(f) ? "[DIR] " : ""}${f.path}`);
+            if (recursive && isFolder(f)) {
+              f.children.forEach((child) => {
+                if (isFile(child) || isFolder(child)) walk(child);
+              });
+            }
+          };
+          if (recursive) {
+            walk(folder);
+          } else {
+            folder.children.forEach((child) => {
+              if (isFile(child) || isFolder(child)) walk(child);
+            });
+          }
+          return Promise.resolve(results.join("\n") || "Folder is empty or all contents are excluded");
         }
         return Promise.resolve(`Error: Folder not found at ${folder_path}`);
       } catch (error) {
@@ -1215,126 +1231,127 @@ ${content}`;
 var toolDeclarations = [
   {
     name: "create_note",
-    description: "Erstellt eine neue Notiz im Vault",
+    description: "Creates a new note in the vault. Use this to save research, summaries, or new information.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Der Pfad der neuen Datei (z.B. 'Notizen/NeueNotiz.md')" },
-        content: { type: "string", description: "Der Inhalt der Notiz" },
-        tags: { type: "array", items: { type: "string" }, description: "Optionale Tags f\xFCr die Notiz" }
+        path: { type: "string", description: "The full path for the new file (e.g., 'Folder/Note.md'). Must end in .md" },
+        content: { type: "string", description: "The markdown content for the note." },
+        tags: { type: "array", items: { type: "string" }, description: "Optional tags to add to the frontmatter." }
       },
       required: ["path", "content"]
     }
   },
   {
     name: "update_note",
-    description: "\xC4ndert den Inhalt einer bestehenden Notiz",
+    description: "Updates the content of an existing note. Use this to refine notes or add more information.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Der Pfad der zu \xE4ndernden Datei" },
-        new_content: { type: "string", description: "Der neue Inhalt der Datei" }
+        path: { type: "string", description: "The path of the file to update." },
+        new_content: { type: "string", description: "The complete new content for the file." }
       },
       required: ["path", "new_content"]
     }
   },
   {
     name: "read_note",
-    description: "Liest den Inhalt einer Notiz f\xFCr den Kontext",
+    description: "Reads the full content of a note. Use this to gain context from files mentioned by the user or found via search.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Der Pfad der zu lesenden Datei" }
+        path: { type: "string", description: "The path of the file to read." }
       },
       required: ["path"]
     }
   },
   {
     name: "get_metadata",
-    description: "Extrahiert Frontmatter und Verlinkungen einer Datei",
+    description: "Extracts frontmatter and links from a file. Use this to understand the relationships and tags of a note.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Der Pfad der Datei" }
+        path: { type: "string", description: "The path of the file." }
       },
       required: ["path"]
     }
   },
   {
     name: "list_files",
-    description: "Listet Dateien in einem bestimmten Ordner auf",
+    description: "Lists files and folders in the vault. Use this to explore the structure or check if a file exists.",
     parameters: {
       type: "object",
       properties: {
-        folder_path: { type: "string", description: "Der Pfad des Ordners (leer lassen f\xFCr den Root-Ordner)" }
+        folder_path: { type: "string", description: "The folder path (leave empty for root '/')." },
+        recursive: { type: "boolean", description: "If true, lists all nested files and subfolders recursively." }
       }
     }
   },
   {
     name: "create_canvas",
-    description: "Erstellt eine neue Canvas-Datei (.canvas)",
+    description: "Creates a new .canvas file. Use this for visual mapping or workflows.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Der Pfad der neuen Canvas-Datei (z.B. 'Design/Workflow.canvas')" },
-        nodes: { type: "array", items: { type: "object" }, description: "Anf\xE4ngliche Knoten f\xFCr den Canvas" }
+        path: { type: "string", description: "The full path for the canvas file (e.g., 'Diagrams/Map.canvas')." },
+        nodes: { type: "array", items: { type: "object" }, description: "Initial nodes for the canvas." }
       },
       required: ["path"]
     }
   },
   {
     name: "add_node_to_canvas",
-    description: "F\xFCgt einen Knoten zu einer bestehenden Canvas-Datei hinzu",
+    description: "Adds a node to an existing canvas file.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Der Pfad der Canvas-Datei" },
-        node: { type: "object", description: "Der hinzuzuf\xFCgende Knoten (mit id, x, y, width, height, type, text/file/etc.)" }
+        path: { type: "string", description: "The path of the canvas file." },
+        node: { type: "object", description: "The node object with id, x, y, width, height, type, and text/file." }
       },
       required: ["path", "node"]
     }
   },
   {
     name: "create_folder",
-    description: "Erstellt einen neuen Ordner im Vault",
+    description: "Creates a new folder in the vault. Use this to organize files into a hierarchy.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "Der Pfad des neuen Ordners (z.B. 'Projekte/AI-Agent')" }
+        path: { type: "string", description: "The path of the new folder (e.g., 'Projects/Research')." }
       },
       required: ["path"]
     }
   },
   {
     name: "execute_command",
-    description: "F\xFChrt einen Obsidian-Befehl anhand seiner ID aus (entspricht der Command Palette)",
+    description: "Executes an internal Obsidian command by its ID. Use this to trigger UI actions or plugin features.",
     parameters: {
       type: "object",
       properties: {
-        command_id: { type: "string", description: "Die ID des Befehls (z.B. 'app:toggle-left-sidebar')" }
+        command_id: { type: "string", description: "The ID of the command (e.g., 'app:toggle-left-sidebar')." }
       },
       required: ["command_id"]
     }
   },
   {
     name: "list_commands",
-    description: "Listet alle verf\xFCgbaren Obsidian-Befehle auf, damit der Agent wei\xDF, was er steuern kann",
+    description: "Lists all available commands and their IDs. Use this to discover what actions you can perform.",
     parameters: { type: "object", properties: {} }
   },
   {
     name: "global_search",
-    description: "Sucht im gesamten Vault nach einem bestimmten Textinhalt (Inhaltssuche)",
+    description: "Performs a full-text search across all markdown files in the vault. Use this to find specific information when you don't know the exact file path.",
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Der zu suchende Text" }
+        query: { type: "string", description: "The text to search for." }
       },
       required: ["query"]
     }
   },
   {
     name: "get_active_note",
-    description: "Holt den Pfad und Inhalt der aktuell im Editor ge\xF6ffneten Notiz",
+    description: "Retrieves the path and content of the note currently open in the editor. Use this to get immediate context on what the user is working on.",
     parameters: { type: "object", properties: {} }
   }
 ];
@@ -1575,9 +1592,27 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
       try {
         const modelId = this.currentConversation?.model || this.plugin.settings.modelName;
         const model = await this.plugin.getModelWithFallback(modelId);
+        const systemInstruction = `You are a professional, autonomous AI agent integrated into an Obsidian vault. 
+Your goal is to help the user manage their knowledge effectively. 
+
+Capabilities & Autonomy:
+1. Proactive Exploration: If you need more context to answer a question, use 'list_files', 'global_search', or 'read_note' immediately without asking for permission.
+2. Organization: When the user asks to "organize", "save", or "research" something, proactively decide to create folders, create notes, or update existing ones.
+3. Structure Awareness: Always keep track of the vault structure. If a task involves multiple files, read them all to ensure consistency.
+4. Tool Usage: You have access to specialized Obsidian tools. Use them strategically to perform actions directly in the vault. 
+
+Guidelines:
+- If a request is ambiguous, explore the vault first to find relevant information.
+- When creating notes, use clean Markdown and appropriate tags.
+- Be concise but thorough. 
+- You act on behalf of the user; if they give you a task that implies vault modification (e.g., "Summarize my meetings from last week into a new note"), do it directly.`;
         const modelWithTools = this.plugin.genAI.getGenerativeModel({
           model: model.model,
-          tools: [{ functionDeclarations: toolDeclarations }]
+          tools: [{ functionDeclarations: toolDeclarations }],
+          systemInstruction: {
+            role: "system",
+            parts: [{ text: systemInstruction }]
+          }
         });
         const cleanHistory = history.map((msg) => ({
           role: msg.role,
@@ -1641,16 +1676,59 @@ User request: ${originalMessage}` : originalMessage;
       const toolStatus = thinkingContainer.createDiv("gemini-tool-status");
       try {
         this.abortController = new AbortController();
-        let result = await this.chat.sendMessage(finalPrompt);
-        let response = await result.response;
+        let result;
+        let response;
+        let retryCount = 0;
+        const MAX_RETRIES = 2;
+        const sendWithRetry = async (prompt) => {
+          while (retryCount <= MAX_RETRIES) {
+            try {
+              return await this.chat.sendMessage(prompt);
+            } catch (error) {
+              const errorText = String(error);
+              if (errorText.includes("429") || errorText.includes("quota")) {
+                retryCount++;
+                if (retryCount <= MAX_RETRIES) {
+                  let delay = 22e3;
+                  const match = errorText.match(/retryDelay":"(\d+)s/);
+                  if (match) delay = parseInt(match[1]) * 1e3 + 1e3;
+                  toolStatus.textContent = `Quota exceeded. Retrying in ${Math.round(delay / 1e3)}s... (Attempt ${retryCount}/${MAX_RETRIES})`;
+                  await new Promise((resolve) => setTimeout(resolve, delay));
+                  continue;
+                }
+              }
+              throw error;
+            }
+          }
+          throw new Error("Max retries exceeded for quota limit.");
+        };
+        result = await sendWithRetry(finalPrompt);
+        response = await result.response;
         let iterations = 0;
         const MAX_ITERATIONS = 5;
         while (iterations < MAX_ITERATIONS && response.candidates && response.candidates[0].content.parts.some((part) => !!part.functionCall)) {
           iterations++;
+          const toolCalls = response.candidates[0].content.parts.filter((p) => !!p.functionCall);
+          if (!this.plugin.settings.autoAcceptTools) {
+            this.setLoading(false);
+            const allowed = await this.requestToolPermission(toolCalls);
+            this.setLoading(true);
+            if (!allowed) {
+              const toolResults2 = toolCalls.map((part) => ({
+                functionResponse: {
+                  name: part.functionCall.name,
+                  response: { result: "Error: User denied permission to execute this tool." }
+                }
+              }));
+              result = await sendWithRetry(toolResults2);
+              response = await result.response;
+              continue;
+            }
+          }
           const toolResults = [];
           const excludedPaths = this.plugin.settings.excludedPaths.split(",").filter((p) => p.trim() !== "");
           const tools = getObsidianTools(this.app, excludedPaths);
-          for (const part of response.candidates[0].content.parts) {
+          for (const part of toolCalls) {
             if (part.functionCall) {
               const name = part.functionCall.name;
               const args = part.functionCall.args;
@@ -1662,7 +1740,7 @@ User request: ${originalMessage}` : originalMessage;
               });
             }
           }
-          result = await this.chat.sendMessage(toolResults);
+          result = await sendWithRetry(toolResults);
           response = await result.response;
         }
         const responseText = response.text();
@@ -1709,6 +1787,33 @@ KI: ${aiMsg}`;
     } catch (e) {
       console.error("Failed to generate title", e);
     }
+  }
+  async requestToolPermission(toolCalls) {
+    return new Promise((resolve) => {
+      const permissionEl = this.messageContainer.createDiv("gemini-tool-permission-card");
+      permissionEl.createDiv({ text: "The agent wants to execute the following tools:", cls: "gemini-permission-header" });
+      const callsList = permissionEl.createDiv("gemini-permission-calls");
+      toolCalls.forEach((part) => {
+        if (part.functionCall) {
+          const callItem = callsList.createDiv("gemini-permission-item");
+          callItem.createSpan({ text: part.functionCall.name, cls: "gemini-tool-name" });
+          const argsText = JSON.stringify(part.functionCall.args, null, 2);
+          callItem.createEl("pre", { text: argsText, cls: "gemini-tool-args" });
+        }
+      });
+      const actions = permissionEl.createDiv("gemini-permission-actions");
+      const allowBtn = actions.createEl("button", { text: "Allow all", cls: "mod-cta" });
+      const denyBtn = actions.createEl("button", { text: "Cancel" });
+      this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
+      allowBtn.onclick = () => {
+        permissionEl.remove();
+        resolve(true);
+      };
+      denyBtn.onclick = () => {
+        permissionEl.remove();
+        resolve(false);
+      };
+    });
   }
   async appendMessage(sender, text, scroll = true) {
     const msgEl = this.messageContainer.createDiv(`gemini-message gemini-message-${sender}`);
@@ -2134,7 +2239,7 @@ var GeminiAgentSettingTab = class extends import_obsidian3.PluginSettingTab {
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian3.Setting(containerEl).setName("Auto-accept tools").setDesc("If enabled, the agent can execute Obsidian tools automatically. If disabled, you might need to confirm actions (not yet implemented in UI).").addToggle(
+    new import_obsidian3.Setting(containerEl).setName("Auto-accept tools").setDesc("If enabled, the agent can execute tools automatically. If disabled, you will be asked to approve each action in the chat.").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoAcceptTools).onChange(async (value) => {
         this.plugin.settings.autoAcceptTools = value;
         await this.plugin.saveSettings();
