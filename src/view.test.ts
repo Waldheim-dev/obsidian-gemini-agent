@@ -167,4 +167,23 @@ describe('GeminiChatView', () => {
 		await view.handleSendMessage();
 		expect(mockChat.sendMessage).toHaveBeenCalledTimes(6);
 	});
+
+	it('should retry on 429 quota exceeded error', async () => {
+		await view.startNewChat();
+		view.inputField.value = 'retry me';
+		
+		const mockChat = view.chat!;
+		const quotaError = new Error('[GoogleGenerativeAI Error]: 429 You exceeded your current quota. {"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"0s"}');
+		
+		mockChat.sendMessage
+			.mockRejectedValueOnce(quotaError)
+			.mockResolvedValueOnce({
+				response: { candidates: [{ content: { parts: [{ text: 'retried success' }] } }], text: () => 'retried success' }
+			});
+
+		await view.handleSendMessage();
+		
+		expect(mockChat.sendMessage).toHaveBeenCalledTimes(2);
+		expect(view.messageContainer.createDiv).toHaveBeenCalledWith(expect.stringContaining('gemini-message-agent'));
+	});
 });

@@ -341,3 +341,74 @@
 	padding: 10px;
 	font-size: 13px;
 }
+
+/* Tool Permission UI */
+.gemini-tool-permission-card {
+	align-self: center;
+	width: 90%;
+	background-color: var(--background-secondary-alt);
+	border: 1px solid var(--interactive-accent);
+	border-radius: 12px;
+	padding: 15px;
+	margin: 10px 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.gemini-permission-header {
+	font-weight: 600;
+	font-size: 14px;
+	color: var(--text-normal);
+}
+
+.gemini-permission-calls {
+	max-height: 250px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.gemini-permission-item {
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 8px;
+}
+
+.gemini-tool-name {
+	font-family: var(--font-monospace);
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--interactive-accent);
+	display: block;
+	margin-bottom: 5px;
+}
+
+.gemini-tool-args {
+	font-family: var(--font-monospace);
+	font-size: 11px;
+	color: var(--text-muted);
+	margin: 0;
+	padding: 5px;
+	background-color: var(--background-secondary);
+	border-radius: 4px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+}
+
+.gemini-permission-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	padding-top: 5px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.gemini-permission-actions button {
+	font-size: 13px;
+	padding: 6px 16px;
+	cursor: pointer;
+}

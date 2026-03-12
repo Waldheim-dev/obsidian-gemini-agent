@@ -341,7 +341,7 @@ export class GeminiAgentSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Auto-accept tools')
-			.setDesc('If enabled, the agent can execute Obsidian tools automatically. If disabled, you might need to confirm actions (not yet implemented in UI).')
+			.setDesc('If enabled, the agent can execute tools automatically. If disabled, you will be asked to approve each action in the chat.')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.autoAcceptTools)
 				.onChange(async (value) => {

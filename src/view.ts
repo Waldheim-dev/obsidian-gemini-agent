@@ -361,19 +361,70 @@ Guidelines:
 
 			try {
 				this.abortController = new AbortController();
-				let result = await this.chat.sendMessage(finalPrompt);
-				let response = await result.response;
+				
+				let result;
+				let response;
+				let retryCount = 0;
+				const MAX_RETRIES = 2;
+
+				const sendWithRetry = async (prompt: string | Part[]) => {
+					while (retryCount <= MAX_RETRIES) {
+						try {
+							return await this.chat!.sendMessage(prompt);
+						} catch (error) {
+							const errorText = String(error);
+							if (errorText.includes('429') || errorText.includes('quota')) {
+								retryCount++;
+								if (retryCount <= MAX_RETRIES) {
+									let delay = 22000; // Default 22s
+									const match = errorText.match(/retryDelay":"(\d+)s/);
+									if (match) delay = parseInt(match[1]) * 1000 + 1000;
+									
+									toolStatus.textContent = `Quota exceeded. Retrying in ${Math.round(delay/1000)}s... (Attempt ${retryCount}/${MAX_RETRIES})`;
+									await new Promise(resolve => setTimeout(resolve, delay));
+									continue;
+								}
+							}
+							throw error;
+						}
+					}
+					throw new Error("Max retries exceeded for quota limit.");
+				};
+
+				result = await sendWithRetry(finalPrompt);
+				response = await result.response;
 				
 				let iterations = 0;
 				const MAX_ITERATIONS = 5;
 
 				while (iterations < MAX_ITERATIONS && response.candidates && response.candidates[0].content.parts.some((part: Part) => !!part.functionCall)) {
 					iterations++;
+					
+					const toolCalls = response.candidates[0].content.parts.filter(p => !!p.functionCall);
+					
+					if (!this.plugin.settings.autoAcceptTools) {
+						this.setLoading(false);
+						const allowed = await this.requestToolPermission(toolCalls);
+						this.setLoading(true);
+						
+						if (!allowed) {
+							const toolResults = toolCalls.map(part => ({
+								functionResponse: { 
+									name: part.functionCall!.name, 
+									response: { result: "Error: User denied permission to execute this tool." } 
+								}
+							}));
+							result = await sendWithRetry(toolResults);
+							response = await result.response;
+							continue;
+						}
+					}
+
 					const toolResults = [];
 					const excludedPaths = this.plugin.settings.excludedPaths.split(',').filter(p => p.trim() !== '');
 					const tools = getObsidianTools(this.app, excludedPaths);
 					
-					for (const part of response.candidates[0].content.parts) {
+					for (const part of toolCalls) {
 						if (part.functionCall) {
 							const name = part.functionCall.name;
 							const args = part.functionCall.args;
@@ -386,7 +437,7 @@ Guidelines:
 							});
 						}
 					}
-					result = await this.chat.sendMessage(toolResults);
+					result = await sendWithRetry(toolResults);
 					response = await result.response;
 				}
 
@@ -436,6 +487,39 @@ Guidelines:
 		} catch (e) {
 			console.error('Failed to generate title', e);
 		}
+	}
+
+	async requestToolPermission(toolCalls: Part[]): Promise<boolean> {
+		return new Promise((resolve) => {
+			const permissionEl = this.messageContainer.createDiv('gemini-tool-permission-card');
+			permissionEl.createDiv({ text: 'The agent wants to execute the following tools:', cls: 'gemini-permission-header' });
+
+			const callsList = permissionEl.createDiv('gemini-permission-calls');
+			toolCalls.forEach(part => {
+				if (part.functionCall) {
+					const callItem = callsList.createDiv('gemini-permission-item');
+					callItem.createSpan({ text: part.functionCall.name, cls: 'gemini-tool-name' });
+					const argsText = JSON.stringify(part.functionCall.args, null, 2);
+					callItem.createEl('pre', { text: argsText, cls: 'gemini-tool-args' });
+				}
+			});
+
+			const actions = permissionEl.createDiv('gemini-permission-actions');
+			const allowBtn = actions.createEl('button', { text: 'Allow all', cls: 'mod-cta' });
+			const denyBtn = actions.createEl('button', { text: 'Cancel' });
+
+			this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
+
+			allowBtn.onclick = () => {
+				permissionEl.remove();
+				resolve(true);
+			};
+
+			denyBtn.onclick = () => {
+				permissionEl.remove();
+				resolve(false);
+			};
+		});
 	}
 
 	async appendMessage(sender: 'user' | 'agent', text: string, scroll = true) {
