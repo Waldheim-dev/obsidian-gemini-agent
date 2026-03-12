@@ -46,18 +46,22 @@ export class GeminiChatView extends ItemView {
 		console.debug('Gemini: view instance created');
 	}
 
-	getViewType = (): string => {
+	getViewType(): string {
 		return VIEW_TYPE_GEMINI_CHAT;
-	};
+	}
 
-	getDisplayText = (): string => {
+	getDisplayText(): string {
 		return "Gemini chat";
-	};
+	}
 
-	onClose = (): Promise<void> => {
+	async onClose(): Promise<void> {
 		this.cancelRequest();
 		return Promise.resolve();
-	};
+	}
+
+	async onOpen(): Promise<void> {
+		this.renderOverview();
+	}
 
 	cancelRequest = (): void => {
 		if (this.abortController) {
@@ -74,10 +78,6 @@ export class GeminiChatView extends ItemView {
 		} else {
 			this.containerEl.removeClass('is-loading');
 		}
-	};
-
-	onOpen = (): void => {
-		this.renderOverview();
 	};
 
 	renderOverview = (): void => {
@@ -496,7 +496,7 @@ Guidelines:
 		if (!this.plugin.genAI || !this.currentConversation) return;
 		try {
 			const model = this.plugin.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-			const prompt = `Generiere einen sehr kurzen, prägnanten Titel (max 5 Wörter) für diesen Chat-Anfang. Gib NUR den Titel zurück, keine Anführungszeichen:\nNutzer: ${userMsg}\nKI: ${aiMsg}`;
+			const prompt = `Generiere einen sehr kurzen, prägnanten Titel (max 5 Wörter) für dieser Chat-Anfang. Gib NUR den Titel zurück, keine Anführungszeichen:\nNutzer: ${userMsg}\nKI: ${aiMsg}`;
 			const result = await model.generateContent(prompt);
 			const title = result.response.text().trim();
 			if (title) {
