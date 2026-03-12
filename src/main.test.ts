@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GeminiAgentPlugin, { DEFAULT_SETTINGS, GeminiAgentSettingTab } from './main';
-import { Notice, requestUrl, App, TFile } from 'obsidian';
+import { Notice, requestUrl, App, TFile, WorkspaceLeaf, Command } from 'obsidian';
 
 // Mock Google AI
 vi.mock('@google/generative-ai', () => {
@@ -16,9 +16,16 @@ vi.mock('@google/generative-ai', () => {
 	};
 });
 
+interface MockApp extends App {
+	secretStorage: {
+		getSecret: ReturnType<typeof vi.fn>;
+		setSecret: ReturnType<typeof vi.fn>;
+	};
+}
+
 describe('GeminiAgentPlugin', () => {
 	let plugin: GeminiAgentPlugin;
-	let mockApp: App;
+	let mockApp: MockApp;
 
 	beforeEach(() => {
 		mockApp = {
@@ -38,31 +45,32 @@ describe('GeminiAgentPlugin', () => {
 				read: vi.fn().mockResolvedValue('Content'),
 				adapter: {
 					exists: vi.fn().mockResolvedValue(false),
+					read: vi.fn().mockResolvedValue(''),
 					write: vi.fn().mockResolvedValue(undefined)
 				}
 			},
 			fileManager: {
 				processFrontMatter: vi.fn()
 			}
-		} as unknown as App;
+		} as unknown as MockApp;
 		
 		plugin = new GeminiAgentPlugin(mockApp, { id: 'test' } as any);
 		plugin.app = mockApp;
 		plugin.settings = Object.assign({}, DEFAULT_SETTINGS);
-		plugin.saveData = vi.fn().mockResolvedValue(undefined);
-		plugin.loadData = vi.fn().mockResolvedValue({});
+		(plugin as any).saveData = vi.fn().mockResolvedValue(undefined);
+		(plugin as any).loadData = vi.fn().mockResolvedValue({});
 	});
 
 	it('should load settings correctly', async () => {
-		plugin.loadData = vi.fn().mockResolvedValue({ modelName: 'm1' });
-		(mockApp.secretStorage.getSecret as any).mockReturnValue('key');
+		(plugin as any).loadData = vi.fn().mockResolvedValue({ modelName: 'm1' });
+		mockApp.secretStorage.getSecret.mockReturnValue('key');
 		await plugin.loadSettings();
 		expect(plugin.settings.modelName).toBe('m1');
 		expect(plugin.settings.apiKey).toBe('key');
 	});
 
 	it('should handle missing settings in loadSettings', async () => {
-		plugin.loadData = vi.fn().mockResolvedValue(null);
+		(plugin as any).loadData = vi.fn().mockResolvedValue(null);
 		await plugin.loadSettings();
 		expect(plugin.settings.modelName).toBe('auto');
 	});
@@ -78,7 +86,8 @@ describe('GeminiAgentPlugin', () => {
 			generateContent: vi.fn().mockResolvedValue({ response: { text: () => 'Summary' } })
 		}) } as any;
 		
-		const mockFile = { basename: 'test' } as TFile;
+		const mockFile = new TFile();
+		mockFile.basename = 'test';
 		(mockApp.workspace.getActiveFile as any).mockReturnValue(mockFile);
 		(mockApp.fileManager.processFrontMatter as any).mockRejectedValue(new Error('fail fm'));
 		
@@ -87,7 +96,10 @@ describe('GeminiAgentPlugin', () => {
 	});
 
 	it('should activate view in existing leaf', async () => {
-		const mockLeaf = { setViewState: vi.fn() };
+		const mockLeaf = { 
+			setViewState: vi.fn(),
+			view: { getViewType: () => 'gemini-chat-view' }
+		} as unknown as WorkspaceLeaf;
 		(mockApp.workspace.getLeavesOfType as any).mockReturnValue([mockLeaf]);
 		await plugin.activateView(false);
 		expect(mockApp.workspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
@@ -116,15 +128,25 @@ describe('GeminiAgentPlugin', () => {
 	});
 
 	it('should handle ribbon and commands', async () => {
+		(plugin as any).addRibbonIcon = vi.fn().mockReturnValue({ addClass: vi.fn() });
+		(plugin as any).addCommand = vi.fn();
+		
 		await plugin.onload();
-		const ribbonCallback = (plugin.addRibbonIcon as any).mock.calls[0][2];
+		
+		const ribbonCalls = (plugin.addRibbonIcon as any).mock.calls;
+		const ribbonCallback = ribbonCalls[0][2] as (e: MouseEvent) => void;
+		
 		const activateSpy = vi.spyOn(plugin, 'activateView').mockResolvedValue(undefined);
 		ribbonCallback({ button: 0 } as MouseEvent);
 		expect(activateSpy).toHaveBeenCalled();
 
-		const summarizeCmd = (plugin.addCommand as any).mock.calls.find((c: any) => c[0].id === 'summarize-current-note')[0];
+		const commandCalls = (plugin.addCommand as any).mock.calls;
+		const summarizeCmd = commandCalls.find((c: [Command]) => c[0].id === 'summarize-current-note')[0] as Command;
 		(mockApp.workspace.getActiveFile as any).mockReturnValue(null);
-		expect(summarizeCmd.checkCallback(true)).toBe(false);
+		
+		if (summarizeCmd.checkCallback) {
+			expect(summarizeCmd.checkCallback(true)).toBe(false);
+		}
 		
 		plugin.onunload();
 	});
@@ -140,7 +162,12 @@ describe('GeminiAgentPlugin', () => {
 				addToggle: vi.fn().mockReturnThis(), 
 				addText: vi.fn().mockReturnThis(), 
 				addDropdown: vi.fn().mockReturnThis(), 
-				addTextArea: vi.fn().mockReturnThis() 
+				addTextArea: vi.fn().mockReturnThis(),
+				setHeading: vi.fn().mockReturnThis(),
+				setName: vi.fn().mockReturnThis(),
+				setDesc: vi.fn().mockReturnThis(),
+				addTextComponent: vi.fn().mockReturnThis(),
+				inputEl: { type: '' }
 			})
 		} as unknown as HTMLElement;
 		tab.display();

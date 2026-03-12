@@ -11,93 +11,70 @@ export interface Conversation {
 	id: string;
 	title: string;
 	messages: ChatMessage[];
+	model: string;
 	updatedAt: number;
-	isArchived: boolean;
-	model?: string;
+	isArchived?: boolean;
 }
 
 export class ConversationManager {
 	private conversations: Conversation[] = [];
 
-	constructor(data: { conversations?: Conversation[] } | undefined) {
-		if (data && Array.isArray(data.conversations)) {
-			this.conversations = data.conversations;
-		}
+	constructor(settings: { conversations: Conversation[] }) {
+		this.conversations = settings.conversations || [];
 	}
 
-	createConversation(title: string = 'New Chat'): Conversation {
+	getConversations = (archived = false, query = ''): Conversation[] => {
+		let filtered = this.conversations.filter(c => !!c.isArchived === archived);
+		if (query) {
+			const lower = query.toLowerCase();
+			filtered = filtered.filter(c => c.title.toLowerCase().includes(lower));
+		}
+		return filtered.sort((a, b) => b.updatedAt - a.updatedAt);
+	};
+
+	getConversation = (id: string): Conversation | undefined => {
+		return this.conversations.find(c => c.id === id);
+	};
+
+	createConversation = (title = 'New chat'): Conversation => {
 		const newConv: Conversation = {
 			id: uuidv4(),
 			title,
 			messages: [],
-			updatedAt: Date.now(),
-			isArchived: false
+			model: 'auto',
+			updatedAt: Date.now()
 		};
-		this.conversations.unshift(newConv);
+		this.conversations.push(newConv);
 		return newConv;
-	}
+	};
 
-	getConversations(includeArchived = false, search = ''): Conversation[] {
-		return this.conversations
-			.filter(c => (includeArchived || !c.isArchived))
-			.filter(c => c.title.toLowerCase().includes(search.toLowerCase()))
-			.sort((a, b) => b.updatedAt - a.updatedAt);
-	}
-
-	getConversation(id: string): Conversation | undefined {
-		return this.conversations.find(c => c.id === id);
-	}
-
-	updateConversation(conv: Conversation) {
+	updateConversation = (conv: Conversation): void => {
 		const index = this.conversations.findIndex(c => c.id === conv.id);
 		if (index !== -1) {
-			conv.updatedAt = Date.now();
-			// Limit message history to last 20 messages (Context Shrinking)
-			if (conv.messages.length > 20) {
-				conv.messages = conv.messages.slice(-20);
-			}
-			this.conversations[index] = conv;
+			this.conversations[index] = { ...conv, updatedAt: Date.now() };
 		}
-	}
+	};
 
-	garbageCollect(maxConversations = 50, maxAgeDays = 30) {
-		const now = Date.now();
-		const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
-
-		// Filter by age and keep archived ones
-		this.conversations = this.conversations.filter(c => {
-			if (c.isArchived) return true;
-			const age = now - c.updatedAt;
-			return age < maxAgeMs;
-		});
-
-		// Limit total number of active conversations
-		if (this.conversations.length > maxConversations) {
-			const active = this.conversations.filter(c => !c.isArchived);
-			const archived = this.conversations.filter(c => c.isArchived);
-			
-			if (active.length > maxConversations) {
-				const truncatedActive = active
-					.sort((a, b) => b.updatedAt - a.updatedAt)
-					.slice(0, maxConversations);
-				this.conversations = [...truncatedActive, ...archived];
-			}
-		}
-	}
-
-	deleteConversation(id: string) {
+	deleteConversation = (id: string): void => {
 		this.conversations = this.conversations.filter(c => c.id !== id);
-	}
+	};
 
-	archiveConversation(id: string, archive = true) {
+	garbageCollect = (): void => {
+		const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+		this.conversations = this.conversations.filter(c => 
+			c.isArchived || c.updatedAt > oneMonthAgo || c.messages.length > 0
+		);
+	};
+
+	archiveConversation = (id: string, archive = true): void => {
 		const conv = this.getConversation(id);
 		if (conv) {
 			conv.isArchived = archive;
 			this.updateConversation(conv);
 		}
-	}
+	};
 
-	toJSON() {
+	toJSON = (): Conversation[] => {
 		return this.conversations;
-	}
+	};
 }

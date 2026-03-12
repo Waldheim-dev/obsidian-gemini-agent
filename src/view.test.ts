@@ -5,6 +5,12 @@ import GeminiAgentPlugin from './main';
 import { Conversation } from './conversations';
 import { Part } from "@google/generative-ai";
 
+interface MockHTMLElement extends HTMLElement {
+	_tag?: string;
+	_cls?: string;
+	_children: Array<MockHTMLElement | string | null>;
+}
+
 describe('GeminiChatView', () => {
 	let view: GeminiChatView;
 	let mockPlugin: GeminiAgentPlugin;
@@ -33,6 +39,22 @@ describe('GeminiChatView', () => {
 			}
 		} as unknown as App;
 
+		const mockGenAI = {
+			getGenerativeModel: vi.fn().mockReturnValue({
+				startChat: vi.fn().mockReturnValue({
+					sendMessage: vi.fn().mockResolvedValue({
+						response: {
+							text: () => 'AI response',
+							candidates: [{ content: { parts: [{ text: 'AI response' }] } }]
+						}
+					})
+				}),
+				generateContent: vi.fn().mockResolvedValue({
+					response: { text: () => 'Auto title' }
+				})
+			})
+		};
+
 		mockPlugin = {
 			settings: {
 				apiKey: 'test-key',
@@ -40,21 +62,7 @@ describe('GeminiChatView', () => {
 				excludedPaths: '',
 				autoAcceptTools: true
 			},
-			genAI: {
-				getGenerativeModel: vi.fn().mockReturnValue({
-					startChat: vi.fn().mockReturnValue({
-						sendMessage: vi.fn().mockResolvedValue({
-							response: {
-								text: () => 'AI response',
-								candidates: [{ content: { parts: [{ text: 'AI response' }] } }]
-							}
-						})
-					}),
-					generateContent: vi.fn().mockResolvedValue({
-						response: { text: () => 'Auto title' }
-					})
-				})
-			},
+			genAI: mockGenAI as any,
 			availableModels: ['gemini-1.5-flash', 'gemini-1.5-pro'],
 			getModelWithFallback: vi.fn().mockReturnValue({ model: 'gemini-1.5-flash' }),
 			logToFile: vi.fn().mockResolvedValue(undefined),
@@ -83,17 +91,19 @@ describe('GeminiChatView', () => {
 				}
 			}
 		} as unknown as WorkspaceLeaf;
+		
 		view = new GeminiChatView(mockLeaf, mockPlugin);
 		(view as any).app = mockApp;
 		view.renderChatInterface();
 	});
 
-	const findBtnRecursive = (el: any, text: string): any => {
-		if (el && el._tag === 'button' && el.textContent === text) return el;
-		if (el && el._children) {
-			for (const child of el._children) {
-				if (typeof child === 'object') {
-					const f = findBtnRecursive(child, text);
+	const findBtnRecursive = (el: HTMLElement, text: string): HTMLButtonElement | null => {
+		const mockEl = el as unknown as MockHTMLElement;
+		if (mockEl && mockEl._tag === 'button' && mockEl.textContent === text) return mockEl as unknown as HTMLButtonElement;
+		if (mockEl && mockEl._children) {
+			for (const child of mockEl._children) {
+				if (typeof child === 'object' && child !== null) {
+					const f = findBtnRecursive(child as unknown as HTMLElement, text);
 					if (f) return f;
 				}
 			}
@@ -111,25 +121,28 @@ describe('GeminiChatView', () => {
 
 	it('should handle conversation actions', async () => {
 		const conv = { id: 'c1', title: 'C1', updatedAt: Date.now(), messages: [], isArchived: false } as Conversation;
-		(mockPlugin.conversationManager.getConversations as any).mockReturnValue([conv]);
+		(mockPlugin.conversationManager!.getConversations as any).mockReturnValue([conv]);
 		view.renderOverview();
 		
-		await view.plugin.conversationManager.archiveConversation('c1', true);
-		expect(mockPlugin.conversationManager.archiveConversation).toHaveBeenCalledWith('c1', true);
+		await view.plugin.conversationManager!.archiveConversation('c1', true);
+		expect(mockPlugin.conversationManager!.archiveConversation).toHaveBeenCalledWith('c1', true);
 		
-		view.plugin.conversationManager.deleteConversation('c1');
-		expect(mockPlugin.conversationManager.deleteConversation).toHaveBeenCalledWith('c1');
+		view.plugin.conversationManager!.deleteConversation('c1');
+		expect(mockPlugin.conversationManager!.deleteConversation).toHaveBeenCalledWith('c1');
 	});
 
 	it('should handle model selection change', async () => {
 		await view.startNewChat();
-		view.currentConversation!.model = 'gemini-1.5-pro';
-		await view.plugin.saveSettings();
-		expect(view.currentConversation?.model).toBe('gemini-1.5-pro');
+		if (view.currentConversation) {
+			view.currentConversation.model = 'gemini-1.5-pro';
+			await view.plugin.saveSettings();
+			expect(view.currentConversation.model).toBe('gemini-1.5-pro');
+		}
 	});
 
 	it('should handle file mentions', async () => {
-		const mockFile = { path: 'test.md' } as TFile;
+		const mockFile = new TFile();
+		mockFile.path = 'test.md';
 		await mockApp.vault.cachedRead(mockFile);
 		expect(mockApp.vault.cachedRead).toHaveBeenCalled();
 	});
@@ -149,8 +162,7 @@ describe('GeminiChatView', () => {
 		(view as any).chat = mockChat;
 
 		await view.handleSendMessage();
-		// Wait long enough for both handleSendMessage and title generation
-		await new Promise(r => setTimeout(r, 150));
+		await new Promise(r => setTimeout(r, 10));
 		expect(view.currentConversation?.title).toBe('Auto title');
 	});
 
@@ -162,7 +174,7 @@ describe('GeminiChatView', () => {
 		const promise = view.requestToolPermission(toolCalls);
 		
 		const allowBtn = findBtnRecursive(view.messageContainer, 'Allow all');
-		if (allowBtn) allowBtn.onclick();
+		if (allowBtn) allowBtn.onclick!(new MouseEvent('click'));
 		
 		const result = await promise;
 		expect(result).toBe(true);
@@ -176,7 +188,7 @@ describe('GeminiChatView', () => {
 		const promise = view.requestToolPermission(toolCalls);
 		
 		const denyBtn = findBtnRecursive(view.messageContainer, 'Cancel');
-		if (denyBtn) denyBtn.onclick();
+		if (denyBtn) denyBtn.onclick!(new MouseEvent('click'));
 		
 		const result = await promise;
 		expect(result).toBe(false);
@@ -217,7 +229,8 @@ describe('GeminiChatView', () => {
 	it('should handle errors in sendMessage', async () => {
 		(view.plugin as any).genAI = null;
 		await view.handleSendMessage();
-		expect((view.messageContainer as any)._children.length).toBeGreaterThan(0);
+		const mockContainer = view.messageContainer as unknown as MockHTMLElement;
+		expect(mockContainer._children.length).toBeGreaterThan(0);
 	});
 
 	it('should handle onClose and close leaf', async () => {
@@ -236,7 +249,6 @@ describe('GeminiChatView', () => {
 		const freshView = new GeminiChatView(mockLeaf, mockPlugin);
 		(freshView as any).app = mockApp;
 		freshView.plugin.genAI = mockPlugin.genAI;
-		// IMPORTANT: renderChatInterface must be called so messageContainer exists
 		freshView.renderChatInterface();
 		await freshView.initializeChat();
 		expect((freshView as any).chat).toBeNull();

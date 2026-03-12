@@ -7,12 +7,46 @@ export const requestUrl = vi.fn().mockResolvedValue({
 	json: { models: [] }
 });
 
-const createMockElement = (tag?: string, options?: any) => {
-	const children: any[] = [];
+interface MockElement {
+	_tag?: string;
+	_cls?: string;
+	_children: Array<MockElement | string | null>;
+	addEventListener: ReturnType<typeof vi.fn>;
+	appendChild: ReturnType<typeof vi.fn>;
+	createEl: ReturnType<typeof vi.fn>;
+	createDiv: ReturnType<typeof vi.fn>;
+	createSpan: ReturnType<typeof vi.fn>;
+	addClass: ReturnType<typeof vi.fn>;
+	removeClass: ReturnType<typeof vi.fn>;
+	empty: ReturnType<typeof vi.fn>;
+	remove: ReturnType<typeof vi.fn>;
+	addOption: ReturnType<typeof vi.fn>;
+	setPlaceholder: ReturnType<typeof vi.fn>;
+	setValue: ReturnType<typeof vi.fn>;
+	setCssProps: ReturnType<typeof vi.fn>;
+	onChange: ReturnType<typeof vi.fn>;
+	textContent: string;
+	type: string;
+	value: string;
+	onclick: ((e: any) => void) | null;
+	oninput: ((e: any) => void) | null;
+	onchange: (() => void) | null;
+	inputEl: any;
+	style: { height: string };
+	scrollTop: number;
+	scrollHeight: number;
+	firstElementChild: MockElement | null;
+}
+
+const createMockElement = (tag?: string, options?: { text?: string; cls?: string } | string): MockElement => {
+	const children: Array<MockElement | string | null> = [];
 	const text = (typeof options === 'string' ? options : options?.text) || '';
 	if (text) children.push(text);
 
-	const el: any = {
+	const el: MockElement = {
+		_tag: tag,
+		_cls: typeof options === 'object' ? options?.cls : (typeof options === 'string' ? options : ''),
+		_children: children,
 		addEventListener: vi.fn(),
 		appendChild: vi.fn().mockImplementation((child) => {
 			children.push(child);
@@ -33,38 +67,30 @@ const createMockElement = (tag?: string, options?: any) => {
 			children.push(child);
 			return child;
 		}),
-		type: '',
-		value: '',
-		onclick: null as any,
-		textContent: text,
-		addClass: vi.fn().mockImplementation((cls) => { el._cls = cls; return el; }),
+		addClass: vi.fn().mockImplementation((cls) => { (el as any)._cls = cls; return el; }),
 		removeClass: vi.fn().mockReturnThis(),
 		empty: vi.fn().mockImplementation(() => { children.length = 0; }),
-		remove: vi.fn().mockImplementation(() => {
-			children.length = 0;
-		}),
+		remove: vi.fn().mockImplementation(() => { children.length = 0; }),
 		addOption: vi.fn().mockReturnThis(),
 		setPlaceholder: vi.fn().mockReturnThis(),
 		setValue: vi.fn().mockReturnThis(),
 		setCssProps: vi.fn().mockReturnThis(),
 		onChange: vi.fn().mockReturnThis(),
-		inputEl: { type: '' },
-		style: {
-			height: ''
-		},
+		textContent: text,
+		type: '',
+		value: '',
+		onclick: null,
+		oninput: null,
+		onchange: null,
+		inputEl: null,
+		style: { height: '' },
 		scrollTop: 0,
 		scrollHeight: 0,
-		_tag: tag,
-		_cls: typeof options === 'object' ? options?.cls : (typeof options === 'string' ? options : ''),
-		_children: children,
-		firstElementChild: null as any
+		get firstElementChild() {
+			return (children.find(c => typeof c === 'object' && c !== null) as MockElement) || null;
+		}
 	};
-	el.inputEl = el; 
-	
-	Object.defineProperty(el, 'firstElementChild', {
-		get: () => children.find(c => typeof c === 'object') || null
-	});
-
+	el.inputEl = el;
 	return el;
 };
 
@@ -84,13 +110,8 @@ export class Plugin {
 }
 
 export class PluginSettingTab {
-	app: any;
-	plugin: any;
-	containerEl: HTMLElement;
-	constructor(app: any, plugin: any) {
-		this.app = app;
-		this.plugin = plugin;
-	}
+	containerEl: HTMLElement = createMockElement() as any;
+	constructor(public app: any, public plugin: any) {}
 	display() {}
 	hide() {}
 }
@@ -100,54 +121,34 @@ export class Setting {
 	setName = vi.fn().mockReturnThis();
 	setDesc = vi.fn().mockReturnThis();
 	setHeading = vi.fn().mockReturnThis();
-	addText = vi.fn().mockImplementation((cb: any) => {
+	addText = vi.fn().mockImplementation((cb: (text: any) => void) => {
 		const el = createMockElement();
-		el.onChange = vi.fn().mockImplementation((changeCb: any) => {
-			changeCb('new-value');
-			return el;
-		});
 		cb(el);
 		return this;
 	});
-	addDropdown = vi.fn().mockImplementation((cb: any) => {
+	addDropdown = vi.fn().mockImplementation((cb: (dropdown: any) => void) => {
 		const el = createMockElement();
-		el.onChange = vi.fn().mockImplementation((changeCb: any) => {
-			changeCb('new-model');
-			return el;
-		});
 		cb(el);
 		return this;
 	});
-	addToggle = vi.fn().mockImplementation((cb: any) => {
+	addToggle = vi.fn().mockImplementation((cb: (toggle: any) => void) => {
 		const el = createMockElement();
-		el.onChange = vi.fn().mockImplementation((changeCb: any) => {
-			changeCb(true);
-			return el;
-		});
 		cb(el);
 		return this;
 	});
-	addTextArea = vi.fn().mockImplementation((cb: any) => {
+	addTextArea = vi.fn().mockImplementation((cb: (textArea: any) => void) => {
 		const el = createMockElement();
-		el.onChange = vi.fn().mockImplementation((changeCb: any) => {
-			changeCb('new-paths');
-			return el;
-		});
 		cb(el);
 		return this;
 	});
 }
 
 export class ItemView {
-	containerEl: any;
-	contentEl: any;
+	containerEl: HTMLElement = createMockElement() as any;
+	contentEl: HTMLElement = createMockElement() as any;
 	navigation = false;
 	icon = '';
-	constructor(public leaf: any) {
-		this.contentEl = createMockElement();
-		this.containerEl = createMockElement();
-		this.containerEl._children = [null, this.contentEl];
-	}
+	constructor(public leaf: any) {}
 	async onOpen() {}
 	async onClose() {}
 	getViewType() { return ''; }
@@ -163,17 +164,26 @@ export class SuggestModal<T> {
 
 export class FuzzySuggestModal<T> extends SuggestModal<T> {
 	getItemText(item: T) { return ''; }
-	getItems() { return []; }
-	onChooseItem(item: T, evt: any) {}
+	getItems(): T[] { return []; }
+	onChooseItem(item: T, evt: MouseEvent | KeyboardEvent) {}
 }
 
 export class MarkdownRenderer {
-	static render = vi.fn().mockImplementation((app, text, el) => {
+	static render = vi.fn().mockImplementation((_app, text, el) => {
 		el.textContent = text;
 		return Promise.resolve();
 	});
 }
 
-export class TFile {}
-export class TFolder {}
-export class TAbstractFile {}
+export class TFile {
+	extension: string;
+	path: string;
+	basename: string;
+}
+export class TFolder {
+	path: string;
+	children: Array<TFile | TFolder>;
+}
+export class TAbstractFile {
+	path: string;
+}

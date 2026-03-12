@@ -36,7 +36,7 @@ export class GeminiChatView extends ItemView {
 	searchQuery = '';
 	showArchived = false;
 	lastUserMessage = '';
-	headerTitleEl: HTMLElement;
+	headerTitleEl: HTMLElement | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: GeminiAgentPlugin) {
 		super(leaf);
@@ -114,8 +114,11 @@ export class GeminiChatView extends ItemView {
 		});
 		searchInput.value = this.searchQuery;
 		searchInput.oninput = (e: Event) => {
-			this.searchQuery = (e.target as HTMLInputElement).value;
-			this.renderConversationList(listContainer);
+			const target = e.target;
+			if (target instanceof HTMLInputElement) {
+				this.searchQuery = target.value;
+				this.renderConversationList(listContainer);
+			}
 		};
 
 		const listContainer = container.createDiv('gemini-conversation-list');
@@ -124,6 +127,7 @@ export class GeminiChatView extends ItemView {
 
 	renderConversationList = (container: HTMLElement): void => {
 		container.empty();
+		if (!this.plugin.conversationManager) return;
 		const convs = this.plugin.conversationManager.getConversations(this.showArchived, this.searchQuery);
 
 		if (convs.length === 0) {
@@ -149,31 +153,37 @@ export class GeminiChatView extends ItemView {
 			setIcon(archiveBtn, conv.isArchived ? 'eye' : 'archive');
 			archiveBtn.onclick = (e: MouseEvent) => {
 				e.stopPropagation();
-				this.plugin.conversationManager.archiveConversation(conv.id, !conv.isArchived);
-				void this.plugin.saveSettings().then(() => {
-					this.renderConversationList(container);
-				});
+				if (this.plugin.conversationManager) {
+					this.plugin.conversationManager.archiveConversation(conv.id, !conv.isArchived);
+					void this.plugin.saveSettings().then(() => {
+						this.renderConversationList(container);
+					});
+				}
 			};
 
 			const deleteBtn = actions.createEl('button', { cls: 'clickable-icon', title: 'Delete' });
 			setIcon(deleteBtn, 'trash-2');
 			deleteBtn.onclick = (e: MouseEvent) => {
 				e.stopPropagation();
-				this.plugin.conversationManager.deleteConversation(conv.id);
-				void this.plugin.saveSettings().then(() => {
-					this.renderConversationList(container);
-					new Notice('Conversation deleted');
-				});
+				if (this.plugin.conversationManager) {
+					this.plugin.conversationManager.deleteConversation(conv.id);
+					void this.plugin.saveSettings().then(() => {
+						this.renderConversationList(container);
+						new Notice('Conversation deleted');
+					});
+				}
 			};
 		});
 	};
 
 	startNewChat = async (): Promise<void> => {
-		this.currentConversation = this.plugin.conversationManager.createConversation('New chat');
-		this.currentConversation.model = this.plugin.settings.modelName;
-		await this.plugin.saveSettings();
-		this.renderChatInterface();
-		await this.initializeChat();
+		if (this.plugin.conversationManager) {
+			this.currentConversation = this.plugin.conversationManager.createConversation('New chat');
+			this.currentConversation.model = this.plugin.settings.modelName;
+			await this.plugin.saveSettings();
+			this.renderChatInterface();
+			await this.initializeChat();
+		}
 	};
 
 	loadConversation = async (conv: Conversation): Promise<void> => {
@@ -377,7 +387,7 @@ Guidelines:
 				let retryCount = 0;
 				const MAX_RETRIES = 2;
 
-				const sendWithRetry = async (prompt: string | Part[]) => {
+				const sendWithRetry = async (prompt: string | Part[] | Array<{ functionResponse: { name: string; response: { result: string } } }>): Promise<{ response: { text: () => string; candidates?: Array<{ content: { parts: Part[] } }> } }> => {
 					while (retryCount <= MAX_RETRIES) {
 						try {
 							return await this.chat!.sendMessage(prompt);
@@ -410,7 +420,7 @@ Guidelines:
 				while (iterations < MAX_ITERATIONS && response.candidates && response.candidates[0].content.parts.some((part: Part) => !!part.functionCall)) {
 					iterations++;
 					
-					const toolCalls = response.candidates[0].content.parts.filter(p => !!p.functionCall);
+					const toolCalls = response.candidates[0].content.parts.filter((p: Part) => !!p.functionCall);
 					
 					if (!this.plugin.settings.autoAcceptTools) {
 						this.setLoading(false);
@@ -418,7 +428,7 @@ Guidelines:
 						this.setLoading(true);
 						
 						if (!allowed) {
-							const toolResults = toolCalls.map(part => ({
+							const toolResults = toolCalls.map((part: Part) => ({
 								functionResponse: { 
 									name: part.functionCall!.name, 
 									response: { result: "Error: user denied permission to execute this tool." } 

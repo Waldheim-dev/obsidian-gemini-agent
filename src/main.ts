@@ -1,6 +1,6 @@
 import { App, Plugin, PluginSettingTab, Setting, Notice, WorkspaceLeaf, addIcon, requestUrl, TFile } from 'obsidian';
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
-import { GeminiChatView, VIEW_TYPE_GEMINI_CHAT } from './view';
+import { GeminiChatView } from './view';
 import { ConversationManager, Conversation } from './conversations';
 
 export const VIEW_TYPE_GEMINI_CHAT = "gemini-chat-view";
@@ -34,13 +34,17 @@ export const DEFAULT_SETTINGS: GeminiAgentSettings = {
 	conversations: []
 }
 
+interface GeminiModelResponse {
+	models?: Array<{ name: string }>;
+}
+
 export default class GeminiAgentPlugin extends Plugin {
-	settings: GeminiAgentSettings;
+	settings: GeminiAgentSettings = DEFAULT_SETTINGS;
 	genAI: GoogleGenerativeAI | null = null;
 	availableModels: string[] = ['auto', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
-	conversationManager: ConversationManager;
+	conversationManager: ConversationManager | null = null;
 
-	async onload(): Promise<void> {
+	onload = async (): Promise<void> => {
 		await this.loadSettings();
 		this.conversationManager = new ConversationManager(this.settings);
 		this.conversationManager.garbageCollect();
@@ -107,7 +111,7 @@ export default class GeminiAgentPlugin extends Plugin {
 			name: 'Summarize current note',
 			checkCallback: (checking) => {
 				const file = this.app.workspace.getActiveFile();
-				if (file) {
+				if (file instanceof TFile) {
 					if (!checking) {
 						void this.summarizeNote(file);
 					}
@@ -120,7 +124,7 @@ export default class GeminiAgentPlugin extends Plugin {
 		this.addSettingTab(new GeminiAgentSettingTab(this.app, this));
 
 		await this.logToFile('Plugin loaded successfully');
-	}
+	};
 
 	refreshModels = async (): Promise<void> => {
 		if (!this.genAI) return;
@@ -129,9 +133,9 @@ export default class GeminiAgentPlugin extends Plugin {
 				url: `https://generativelanguage.googleapis.com/v1beta/models?key=${this.settings.apiKey}`,
 				method: 'GET',
 			});
-			const data = response.json;
-			if (data.models) {
-				const apiModels = (data.models as Array<{ name: string }>)
+			const data = response.json as GeminiModelResponse;
+			if (data.models && Array.isArray(data.models)) {
+				const apiModels = data.models
 					.map((m) => m.name.replace('models/', ''))
 					.filter((name) => name.includes('gemini'));
 				this.availableModels = ['auto', ...apiModels];
@@ -144,9 +148,10 @@ export default class GeminiAgentPlugin extends Plugin {
 	getModelWithFallback = (preferredModel: string): GenerativeModel => {
 		if (!this.genAI) throw new Error('GenAI not initialized');
 		
-		let modelsToTry = [preferredModel];
+		const modelsToTry = [preferredModel];
 		if (preferredModel === 'auto' || preferredModel === '') {
-			modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+			modelsToTry.length = 0;
+			modelsToTry.push('gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash');
 		} else {
 			if (!modelsToTry.includes('gemini-1.5-flash')) modelsToTry.push('gemini-1.5-flash');
 		}
@@ -154,11 +159,11 @@ export default class GeminiAgentPlugin extends Plugin {
 		let lastError: Error | null = null;
 		for (const modelName of modelsToTry) {
 			try {
-				const model = this.genAI.getGenerativeModel({ model: modelName });
-				return model;
+				return this.genAI.getGenerativeModel({ model: modelName });
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
-				if (lastError.message?.includes('429') || lastError.message?.includes('quota') || lastError.message?.includes('not found')) {
+				const msg = lastError.message || '';
+				if (msg.includes('429') || msg.includes('quota') || msg.includes('not found')) {
 					console.warn(`Model ${modelName} failed, trying fallback...`, lastError);
 					continue;
 				}
@@ -169,7 +174,7 @@ export default class GeminiAgentPlugin extends Plugin {
 	};
 
 	summarizeNote = async (file: TFile): Promise<void> => {
-		if (!this.genAI || !this.settings) {
+		if (!this.genAI) {
 			new Notice('Gemini API key not configured');
 			return;
 		}
@@ -252,21 +257,23 @@ export default class GeminiAgentPlugin extends Plugin {
 				new Notice('Error: could not open Gemini chat. See log file.');
 			}
 		} catch (error) {
-			await this.logToFile(`CRITICAL ERROR in activateView: ${error instanceof Error ? error.message : String(error)}`, true);
+			const msg = error instanceof Error ? error.message : String(error);
+			await this.logToFile(`CRITICAL ERROR in activateView: ${msg}`, true);
 			if (error instanceof Error && error.stack) await this.logToFile(`Stack: ${error.stack}`, true);
 			new Notice('Critical error opening Gemini chat. Check log file.');
 		}
 	};
 
-	onunload(): void {
+	onunload = (): void => {
 		console.debug('Gemini agent plugin unloaded');
-	}
+	};
 
 	loadSettings = async (): Promise<void> => {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const loadedData = await this.loadData() as Partial<GeminiAgentSettings>;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
 
 		const secretKey = this.app.secretStorage.getSecret('gemini-api-key');
-		if (secretKey) {
+		if (typeof secretKey === 'string' && secretKey !== '') {
 			this.settings.apiKey = secretKey;
 		}
 
@@ -283,13 +290,9 @@ export default class GeminiAgentPlugin extends Plugin {
 
 		if (this.settings.apiKey) {
 			this.app.secretStorage.setSecret('gemini-api-key', this.settings.apiKey);
-		} else {
-			this.app.secretStorage.setSecret('gemini-api-key', '');
-		}
-
-		if (this.settings.apiKey) {
 			this.genAI = new GoogleGenerativeAI(this.settings.apiKey);
 		} else {
+			this.app.secretStorage.setSecret('gemini-api-key', '');
 			this.genAI = null;
 		}
 

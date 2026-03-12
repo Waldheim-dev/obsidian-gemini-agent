@@ -9,15 +9,15 @@ export class FileSuggestModal extends FuzzySuggestModal<TFile> {
 		this.setPlaceholder('Select a file to attach as context...');
 	}
 
-	getItems(): TFile[] {
+	getItems = (): TFile[] => {
 		return this.app.vault.getMarkdownFiles();
-	}
+	};
 
-	getItemText(file: TFile): string {
+	getItemText = (file: TFile): string => {
 		return file.path;
-	}
+	};
 
-	onChooseItem(file: TFile, _evt: MouseEvent | KeyboardEvent): void {
+	onChooseItem = (file: TFile, _evt: MouseEvent | KeyboardEvent): void => {
 		this.onSelect(file);
-	}
+	};
 }
