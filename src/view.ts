@@ -6,14 +6,14 @@ import { FileSuggestModal } from './suggest';
 import { ChatSession, Content, Part } from "@google/generative-ai";
 
 const THINKING_TIPS = [
-	"Tip: Use # to attach a file for more context.",
-	"Did you know? Gemini can create and edit Obsidian Canvas files.",
-	"Idea: Ask Gemini to summarize your meeting notes.",
-	"Tip: You can exclude sensitive folders in the plugin settings.",
-	"Did you know? Gemini 1.5 Pro has a massive context window.",
-	"Idea: Ask for a mind-map based on your current project.",
-	"Tip: Use @mention logic coming soon for even better workflow.",
-	"Pro-Tip: Clear chat frequently to keep the context focused."
+	"Tip: use # to attach a file for more context.",
+	"Did you know? Gemini can create and edit Obsidian canvas files.",
+	"Idea: ask Gemini to summarize your meeting notes.",
+	"Tip: you can exclude sensitive folders in the plugin settings.",
+	"Did you know? Gemini 1.5 pro has a massive context window.",
+	"Idea: ask for a mind-map based on your current project.",
+	"Tip: use @mention logic coming soon for even better workflow.",
+	"Pro-tip: clear chat frequently to keep the context focused."
 ];
 
 const THINKING_QUOTES = [
@@ -46,41 +46,41 @@ export class GeminiChatView extends ItemView {
 		console.debug('Gemini: view instance created');
 	}
 
-	getViewType() {
+	getViewType = (): string => {
 		return VIEW_TYPE_GEMINI_CHAT;
-	}
+	};
 
-	getDisplayText() {
+	getDisplayText = (): string => {
 		return "Gemini chat";
-	}
+	};
 
-	onClose() {
+	onClose = (): Promise<void> => {
 		this.cancelRequest();
 		return Promise.resolve();
-	}
+	};
 
-	cancelRequest() {
+	cancelRequest = (): void => {
 		if (this.abortController) {
 			this.abortController.abort();
 			this.abortController = null;
 		}
 		this.setLoading(false);
-	}
+	};
 
-	setLoading(loading: boolean) {
+	setLoading = (loading: boolean): void => {
 		this.isLoading = loading;
 		if (loading) {
 			this.containerEl.addClass('is-loading');
 		} else {
 			this.containerEl.removeClass('is-loading');
 		}
-	}
+	};
 
-	onOpen() {
+	onOpen = (): void => {
 		this.renderOverview();
-	}
+	};
 
-	renderOverview() {
+	renderOverview = (): void => {
 		const container = this.contentEl;
 		container.empty();
 		container.addClass('gemini-chat-view-container');
@@ -102,7 +102,9 @@ export class GeminiChatView extends ItemView {
 
 		const newChatBtn = headerActions.createEl('button', { cls: 'clickable-icon', title: 'New chat' });
 		setIcon(newChatBtn, 'plus');
-		newChatBtn.onclick = () => void this.startNewChat();
+		newChatBtn.onclick = () => {
+			void this.startNewChat();
+		};
 
 		const searchContainer = container.createDiv('gemini-search-container');
 		const searchInput = searchContainer.createEl('input', {
@@ -111,16 +113,16 @@ export class GeminiChatView extends ItemView {
 			cls: 'gemini-search-input'
 		});
 		searchInput.value = this.searchQuery;
-		searchInput.oninput = (e) => {
+		searchInput.oninput = (e: Event) => {
 			this.searchQuery = (e.target as HTMLInputElement).value;
 			this.renderConversationList(listContainer);
 		};
 
 		const listContainer = container.createDiv('gemini-conversation-list');
 		this.renderConversationList(listContainer);
-	}
+	};
 
-	renderConversationList(container: HTMLElement) {
+	renderConversationList = (container: HTMLElement): void => {
 		container.empty();
 		const convs = this.plugin.conversationManager.getConversations(this.showArchived, this.searchQuery);
 
@@ -137,40 +139,44 @@ export class GeminiChatView extends ItemView {
 			info.createDiv({ text: conv.title, cls: 'gemini-conv-title' });
 			info.createDiv({ text: new Date(conv.updatedAt).toLocaleString(), cls: 'gemini-conv-date' });
 			
-			info.onclick = () => void this.loadConversation(conv);
+			info.onclick = () => {
+				void this.loadConversation(conv);
+			};
 
 			const actions = item.createDiv('gemini-conv-actions');
 			
 			const archiveBtn = actions.createEl('button', { cls: 'clickable-icon', title: conv.isArchived ? 'Unarchive' : 'Archive' });
 			setIcon(archiveBtn, conv.isArchived ? 'eye' : 'archive');
-			archiveBtn.onclick = async (e) => {
+			archiveBtn.onclick = (e: MouseEvent) => {
 				e.stopPropagation();
 				this.plugin.conversationManager.archiveConversation(conv.id, !conv.isArchived);
-				await this.plugin.saveSettings();
-				this.renderConversationList(container);
+				void this.plugin.saveSettings().then(() => {
+					this.renderConversationList(container);
+				});
 			};
 
 			const deleteBtn = actions.createEl('button', { cls: 'clickable-icon', title: 'Delete' });
 			setIcon(deleteBtn, 'trash-2');
-			deleteBtn.onclick = async (e) => {
+			deleteBtn.onclick = (e: MouseEvent) => {
 				e.stopPropagation();
 				this.plugin.conversationManager.deleteConversation(conv.id);
-				await this.plugin.saveSettings();
-				this.renderConversationList(container);
-				new Notice('Conversation deleted');
+				void this.plugin.saveSettings().then(() => {
+					this.renderConversationList(container);
+					new Notice('Conversation deleted');
+				});
 			};
 		});
-	}
+	};
 
-	async startNewChat() {
-		this.currentConversation = this.plugin.conversationManager.createConversation();
+	startNewChat = async (): Promise<void> => {
+		this.currentConversation = this.plugin.conversationManager.createConversation('New chat');
 		this.currentConversation.model = this.plugin.settings.modelName;
 		await this.plugin.saveSettings();
 		this.renderChatInterface();
 		await this.initializeChat();
-	}
+	};
 
-	async loadConversation(conv: Conversation) {
+	loadConversation = async (conv: Conversation): Promise<void> => {
 		this.currentConversation = conv;
 		this.renderChatInterface();
 		
@@ -186,9 +192,9 @@ export class GeminiChatView extends ItemView {
 			role: m.role,
 			parts: m.parts
 		})));
-	}
+	};
 
-	renderChatInterface() {
+	renderChatInterface = (): void => {
 		const container = this.contentEl;
 		container.empty();
 
@@ -197,18 +203,19 @@ export class GeminiChatView extends ItemView {
 		setIcon(backBtn, 'arrow-left');
 		backBtn.onclick = () => this.renderOverview();
 
-		this.headerTitleEl = header.createEl('h4', { text: this.currentConversation?.title || 'Gemini AI Agent', cls: 'gemini-header-title' });
+		this.headerTitleEl = header.createEl('h4', { text: this.currentConversation?.title || 'Gemini AI agent', cls: 'gemini-header-title' });
 
 		const modelSelect = header.createEl('select', { cls: 'gemini-model-select-ui' });
 		this.plugin.availableModels.forEach(mId => {
 			const opt = modelSelect.createEl('option', { text: MODEL_DISPLAY_NAMES[mId] || mId, value: mId });
 			if (mId === (this.currentConversation?.model || this.plugin.settings.modelName)) opt.selected = true;
 		});
-		modelSelect.onchange = async () => {
+		modelSelect.onchange = () => {
 			if (this.currentConversation) {
 				this.currentConversation.model = modelSelect.value;
-				await this.plugin.saveSettings();
-				await this.initializeChat(this.currentConversation.messages);
+				void this.plugin.saveSettings().then(() => {
+					void this.initializeChat(this.currentConversation?.messages);
+				});
 			}
 		};
 
@@ -224,16 +231,16 @@ export class GeminiChatView extends ItemView {
 
 		this.inputField.addEventListener('input', () => {
 			this.inputField.setCssProps({ height: 'auto' });
-			this.inputField.setCssProps({ height: this.inputField.scrollHeight + 'px' });
+			this.inputField.setCssProps({ height: `${this.inputField.scrollHeight}px` });
 		});
 
-		this.inputField.addEventListener('keydown', (e) => {
+		this.inputField.addEventListener('keydown', (e: KeyboardEvent) => {
 			if (e.key === '#') {
 				setTimeout(() => {
 					new FileSuggestModal(this.app, (file) => {
 						const value = this.inputField.value;
 						const lastHashIndex = value.lastIndexOf('#');
-						this.inputField.value = value.substring(0, lastHashIndex) + `[[${file.path}]] `;
+						this.inputField.value = `${value.substring(0, lastHashIndex)}[[${file.path}]] `;
 						this.inputField.focus();
 						this.inputField.dispatchEvent(new Event('input'));
 					}).open();
@@ -247,33 +254,35 @@ export class GeminiChatView extends ItemView {
 
 			if (e.key === 'Enter' && !e.shiftKey) {
 				e.preventDefault();
-				this.handleSendMessage();
+				void this.handleSendMessage();
 			}
 		});
 
 		const sendButton = inputContainer.createEl('button', { cls: 'gemini-send-button', title: 'Send' });
 		setIcon(sendButton, 'send');
-		sendButton.onclick = () => void this.handleSendMessage();
-	}
+		sendButton.onclick = () => {
+			void this.handleSendMessage();
+		};
+	};
 
-	async initializeChat(history: Content[] = []) {
+	initializeChat = async (history: Content[] = []): Promise<void> => {
 		if (this.plugin.genAI) {
 			try {
 				const modelId = this.currentConversation?.model || this.plugin.settings.modelName;
-				const model = await this.plugin.getModelWithFallback(modelId);
+				const model = this.plugin.getModelWithFallback(modelId);
 
 				const systemInstruction = `You are a professional, autonomous AI agent integrated into an Obsidian vault. 
 Your goal is to help the user manage their knowledge effectively. 
 
-Capabilities & Autonomy:
-1. Proactive Exploration: If you need more context to answer a question, use 'list_files', 'global_search', or 'read_note' immediately without asking for permission.
+Capabilities & autonomy:
+1. Proactive exploration: If you need more context to answer a question, use 'list_files', 'global_search', or 'read_note' immediately without asking for permission.
 2. Organization: When the user asks to "organize", "save", or "research" something, proactively decide to create folders, create notes, or update existing ones.
-3. Structure Awareness: Always keep track of the vault structure. If a task involves multiple files, read them all to ensure consistency.
-4. Tool Usage: You have access to specialized Obsidian tools. Use them strategically to perform actions directly in the vault. 
+3. Structure awareness: Always keep track of the vault structure. If a task involves multiple files, read them all to ensure consistency.
+4. Tool usage: You have access to specialized Obsidian tools. Use them strategically to perform actions directly in the vault. 
 
 Guidelines:
 - If a request is ambiguous, explore the vault first to find relevant information.
-- When creating notes, use clean Markdown and appropriate tags.
+- When creating notes, use clean markdown and appropriate tags.
 - Be concise but thorough. 
 - You act on behalf of the user; if they give you a task that implies vault modification (e.g., "Summarize my meetings from last week into a new note"), do it directly.`;
 
@@ -294,12 +303,13 @@ Guidelines:
 
 				this.chat = modelWithTools.startChat({ history: cleanHistory });
 			} catch (error) {
+				this.chat = null;
 				await this.appendMessage('agent', `Error initializing chat: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}
-	}
+	};
 
-	async handleSendMessage() {
+	handleSendMessage = async (): Promise<void> => {
 		const originalMessage = this.inputField.value.trim();
 		if (!originalMessage || this.isLoading || !this.currentConversation) return;
 
@@ -329,10 +339,10 @@ Guidelines:
 		});
 
 		this.inputField.value = '';
-		this.inputField.style.setProperty('height', 'auto');
+		this.inputField.setCssProps({ height: 'auto' });
 
 		if (!this.plugin.genAI) {
-			await this.appendMessage('agent', 'Error: API Key not configured.');
+			await this.appendMessage('agent', 'Error: API key not configured.');
 			return;
 		}
 
@@ -346,11 +356,11 @@ Guidelines:
 		
 		const thinkingMsg = await this.appendMessage('agent', 'Thinking...');
 		thinkingMsg.addClass('gemini-thinking-wrapper');
-		const contentEl = thinkingMsg.firstElementChild as HTMLElement;
-		if (contentEl) {
-			contentEl.empty();
+		const firstChild = thinkingMsg.firstElementChild;
+		if (firstChild instanceof HTMLElement) {
+			firstChild.empty();
 			
-			const thinkingContainer = contentEl.createDiv('gemini-thinking-container');
+			const thinkingContainer = firstChild.createDiv('gemini-thinking-container');
 			thinkingContainer.createDiv('gemini-thinking-shimmer').textContent = 'Gemini is processing your request...';
 			
 			const infoPanel = thinkingContainer.createDiv('gemini-thinking-info');
@@ -411,7 +421,7 @@ Guidelines:
 							const toolResults = toolCalls.map(part => ({
 								functionResponse: { 
 									name: part.functionCall!.name, 
-									response: { result: "Error: User denied permission to execute this tool." } 
+									response: { result: "Error: user denied permission to execute this tool." } 
 								}
 							}));
 							result = await sendWithRetry(toolResults);
@@ -431,7 +441,7 @@ Guidelines:
 							toolStatus.textContent = `Executing tool: ${name}...`;
 							
 							const toolFunction = tools[name];
-							const resultText = toolFunction ? await toolFunction(args) : `Tool ${name} not found`;
+							const resultText = toolFunction ? await toolFunction(args as Record<string, unknown>) : `Tool ${name} not found`;
 							toolResults.push({
 								functionResponse: { name, response: { result: resultText } }
 							});
@@ -452,7 +462,7 @@ Guidelines:
 						timestamp: Date.now()
 					});
 
-					if (this.currentConversation.title === 'New Chat') {
+					if (this.currentConversation.title === 'New chat') {
 						await this.generateAutoTitle(originalMessage, responseText);
 					}
 				}
@@ -460,19 +470,19 @@ Guidelines:
 				await this.plugin.saveSettings();
 			} catch (error) {
 				if (thinkingMsg) thinkingMsg.remove();
-				if (error.name === 'AbortError') {
+				if (error instanceof Error && error.name === 'AbortError') {
 					await this.appendMessage('agent', '_Request cancelled_');
 				} else {
-					await this.appendMessage('agent', `**Error:** ${error.message}`);
+					await this.appendMessage('agent', `**Error:** ${error instanceof Error ? error.message : String(error)}`);
 				}
 			} finally {
 				this.abortController = null;
 				this.setLoading(false);
 			}
 		}
-	}
+	};
 
-	async generateAutoTitle(userMsg: string, aiMsg: string) {
+	generateAutoTitle = async (userMsg: string, aiMsg: string): Promise<void> => {
 		if (!this.plugin.genAI || !this.currentConversation) return;
 		try {
 			const model = this.plugin.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -487,9 +497,9 @@ Guidelines:
 		} catch (e) {
 			console.error('Failed to generate title', e);
 		}
-	}
+	};
 
-	async requestToolPermission(toolCalls: Part[]): Promise<boolean> {
+	requestToolPermission = (toolCalls: Part[]): Promise<boolean> => {
 		return new Promise((resolve) => {
 			const permissionEl = this.messageContainer.createDiv('gemini-tool-permission-card');
 			permissionEl.createDiv({ text: 'The agent wants to execute the following tools:', cls: 'gemini-permission-header' });
@@ -520,9 +530,9 @@ Guidelines:
 				resolve(false);
 			};
 		});
-	}
+	};
 
-	async appendMessage(sender: 'user' | 'agent', text: string, scroll = true) {
+	appendMessage = async (sender: 'user' | 'agent', text: string, scroll = true): Promise<HTMLElement> => {
 		const msgEl = this.messageContainer.createDiv(`gemini-message gemini-message-${sender}`);
 		const contentEl = msgEl.createDiv('gemini-message-content');
 		
@@ -535,8 +545,9 @@ Guidelines:
 			const copyBtn = actionsEl.createEl('button', { cls: 'gemini-action-btn', title: 'Copy to clipboard' });
 			setIcon(copyBtn, 'copy');
 			copyBtn.onclick = () => {
-				navigator.clipboard.writeText(text);
-				new Notice('Copied to clipboard');
+				void navigator.clipboard.writeText(text).then(() => {
+					new Notice('Copied to clipboard');
+				});
 			};
 
 			const retryBtn = actionsEl.createEl('button', { cls: 'gemini-action-btn', title: 'Regenerate' });
@@ -548,7 +559,7 @@ Guidelines:
 					const lastUserMsg = this.currentConversation.messages.pop(); // get and remove last user
 					if (lastUserMsg) {
 						this.inputField.value = lastUserMsg.parts[0].text.split('\nUser request: ').pop() || lastUserMsg.parts[0].text;
-						this.handleSendMessage();
+						void this.handleSendMessage();
 					}
 				}
 			};
@@ -558,5 +569,5 @@ Guidelines:
 		
 		if (scroll) this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
 		return msgEl;
-	}
+	};
 }

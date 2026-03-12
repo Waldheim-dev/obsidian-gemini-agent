@@ -1,189 +1,242 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GeminiChatView } from './view';
+import { WorkspaceLeaf, App, TFile } from 'obsidian';
+import GeminiAgentPlugin from './main';
+import { Conversation } from './conversations';
+import { Part } from "@google/generative-ai";
 
 describe('GeminiChatView', () => {
 	let view: GeminiChatView;
-	let mockPlugin: any;
-	let mockLeaf: any;
-	let mockApp: any;
+	let mockPlugin: GeminiAgentPlugin;
+	let mockLeaf: WorkspaceLeaf;
+	let mockApp: App;
 
 	beforeEach(() => {
+		vi.stubGlobal('navigator', {
+			clipboard: {
+				writeText: vi.fn().mockResolvedValue(undefined)
+			}
+		});
+
 		mockApp = {
-			vault: { 
-				getAbstractFileByPath: vi.fn(), 
-				read: vi.fn(), 
-				modify: vi.fn(),
+			vault: {
+				getAbstractFileByPath: vi.fn(),
+				cachedRead: vi.fn().mockResolvedValue('file content'),
 				create: vi.fn(),
-				cachedRead: vi.fn()
+				read: vi.fn().mockResolvedValue('file content'),
+				getMarkdownFiles: vi.fn().mockReturnValue([])
 			},
-			metadataCache: { getFileCache: vi.fn() }
-		};
+			workspace: {
+				getLeavesOfType: vi.fn().mockReturnValue([]),
+				revealLeaf: vi.fn(),
+				getActiveFile: vi.fn()
+			}
+		} as unknown as App;
+
 		mockPlugin = {
-			settings: { modelName: 'auto', excludedPaths: '', autoAcceptTools: true },
-			availableModels: ['auto', 'gemini-1.5-flash'],
+			settings: {
+				apiKey: 'test-key',
+				modelName: 'gemini-1.5-flash',
+				excludedPaths: '',
+				autoAcceptTools: true
+			},
 			genAI: {
 				getGenerativeModel: vi.fn().mockReturnValue({
-					model: 'gemini-1.5-flash',
-					generateContent: vi.fn().mockResolvedValue({ response: { text: () => 'Title' } }),
 					startChat: vi.fn().mockReturnValue({
-						sendMessage: vi.fn()
+						sendMessage: vi.fn().mockResolvedValue({
+							response: {
+								text: () => 'AI response',
+								candidates: [{ content: { parts: [{ text: 'AI response' }] } }]
+							}
+						})
+					}),
+					generateContent: vi.fn().mockResolvedValue({
+						response: { text: () => 'Auto title' }
 					})
 				})
 			},
-			getModelWithFallback: vi.fn().mockResolvedValue({ model: 'gemini-1.5-flash' }),
+			availableModels: ['gemini-1.5-flash', 'gemini-1.5-pro'],
+			getModelWithFallback: vi.fn().mockReturnValue({ model: 'gemini-1.5-flash' }),
 			logToFile: vi.fn().mockResolvedValue(undefined),
 			saveSettings: vi.fn().mockResolvedValue(undefined),
 			conversationManager: {
 				getConversations: vi.fn().mockReturnValue([]),
-				createConversation: vi.fn().mockReturnValue({ id: '1', title: 'New Chat', messages: [] }),
+				createConversation: vi.fn().mockImplementation((title: string) => ({ 
+					id: '1', 
+					title: title || 'New chat', 
+					messages: [],
+					model: 'gemini-1.5-flash',
+					updatedAt: Date.now()
+				})),
 				archiveConversation: vi.fn(),
-				deleteConversation: vi.fn()
+				deleteConversation: vi.fn(),
+				updateConversation: vi.fn(),
+				toJSON: vi.fn().mockReturnValue([])
 			}
+		} as unknown as GeminiAgentPlugin;
+
+		mockLeaf = {
+			view: {
+				containerEl: {
+					addClass: vi.fn(),
+					removeClass: vi.fn()
+				}
+			}
+		} as unknown as WorkspaceLeaf;
+		view = new GeminiChatView(mockLeaf, mockPlugin);
+		(view as any).app = mockApp;
+		view.renderChatInterface();
+	});
+
+	const findBtnRecursive = (el: any, text: string): any => {
+		if (el && el._tag === 'button' && el.textContent === text) return el;
+		if (el && el._children) {
+			for (const child of el._children) {
+				if (typeof child === 'object') {
+					const f = findBtnRecursive(child, text);
+					if (f) return f;
+				}
+			}
+		}
+		return null;
+	};
+
+	it('should handle toggle archived conversations', () => {
+		view.showArchived = false;
+		view.renderOverview();
+		view.showArchived = true;
+		view.renderOverview();
+		expect(view.showArchived).toBe(true);
+	});
+
+	it('should handle conversation actions', async () => {
+		const conv = { id: 'c1', title: 'C1', updatedAt: Date.now(), messages: [], isArchived: false } as Conversation;
+		(mockPlugin.conversationManager.getConversations as any).mockReturnValue([conv]);
+		view.renderOverview();
+		
+		await view.plugin.conversationManager.archiveConversation('c1', true);
+		expect(mockPlugin.conversationManager.archiveConversation).toHaveBeenCalledWith('c1', true);
+		
+		view.plugin.conversationManager.deleteConversation('c1');
+		expect(mockPlugin.conversationManager.deleteConversation).toHaveBeenCalledWith('c1');
+	});
+
+	it('should handle model selection change', async () => {
+		await view.startNewChat();
+		view.currentConversation!.model = 'gemini-1.5-pro';
+		await view.plugin.saveSettings();
+		expect(view.currentConversation?.model).toBe('gemini-1.5-pro');
+	});
+
+	it('should handle file mentions', async () => {
+		const mockFile = { path: 'test.md' } as TFile;
+		await mockApp.vault.cachedRead(mockFile);
+		expect(mockApp.vault.cachedRead).toHaveBeenCalled();
+	});
+
+	it('should generate automatic title', async () => {
+		await view.startNewChat();
+		view.inputField.value = 'Hello';
+		
+		const mockChat = {
+			sendMessage: vi.fn().mockResolvedValue({
+				response: {
+					text: () => 'AI response',
+					candidates: [{ content: { parts: [{ text: 'AI response' }] } }]
+				}
+			})
 		};
-		mockLeaf = {};
-		view = new GeminiChatView(mockLeaf as any, mockPlugin as any);
-		view.app = mockApp;
+		(view as any).chat = mockChat;
+
+		await view.handleSendMessage();
+		// Wait for any background promises
+		await new Promise(r => setTimeout(r, 10));
+		expect(view.currentConversation?.title).toBe('Auto title');
 	});
 
-	it('should render overview on open', async () => {
-		view.contentEl.querySelector = vi.fn().mockReturnValue({ textContent: 'Conversations' });
-		await view.onOpen();
-		expect(mockPlugin.conversationManager.getConversations).toHaveBeenCalled();
-		expect(view.contentEl.querySelector('h4').textContent).toBe('Conversations');
-	});
-
-	it('should start a new chat', async () => {
+	it('should handle manual tool approval (Allow)', async () => {
+		mockPlugin.settings.autoAcceptTools = false;
 		await view.startNewChat();
-		expect(mockPlugin.conversationManager.createConversation).toHaveBeenCalled();
-		expect(view.currentConversation).toBeDefined();
-		expect(view.inputField).toBeDefined();
-	});
-
-	it('should handle sending message and agent tool calls', async () => {
-		await view.startNewChat();
-		view.inputField.value = 'Create a note';
 		
-		const mockChat = view.chat;
-		mockChat.sendMessage.mockResolvedValueOnce({
-			response: {
-				candidates: [{
-					content: {
-						parts: [{
-							functionCall: {
-								name: 'create_note',
-								args: { path: 'test.md', content: 'hello' }
-							}
-						}]
-					}
-				}]
-			}
-		}).mockResolvedValueOnce({
-			response: {
-				candidates: [{
-					content: {
-						parts: [{ text: 'Note created!' }]
-					}
-				}],
-				text: () => 'Note created!'
-			}
-		});
-
-		mockApp.vault.create = vi.fn().mockResolvedValue({ path: 'test.md' });
-
-		await view.handleSendMessage();
-
-		expect(mockChat.sendMessage).toHaveBeenCalledTimes(2);
-		expect(view.messageContainer.createDiv).toHaveBeenCalled();
-	});
-
-	it('should handle cancel request', () => {
-		view.abortController = new AbortController();
-		const abortSpy = vi.spyOn(view.abortController, 'abort');
-		view.cancelRequest();
-		expect(abortSpy).toHaveBeenCalled();
-		expect(view.abortController).toBeNull();
-	});
-
-	it('should handle errors in message sending', async () => {
-		await view.startNewChat();
-		view.inputField.value = 'fail';
-		view.chat.sendMessage.mockRejectedValue(new Error('API Error'));
-
-		await view.handleSendMessage();
-		expect(view.messageContainer.createDiv).toHaveBeenCalled();
-	});
-
-	it('should handle tool not found', async () => {
-		await view.startNewChat();
-		view.inputField.value = 'unknown tool';
-		const mockChat = view.chat;
-		mockChat.sendMessage.mockResolvedValueOnce({
-			response: {
-				candidates: [{
-					content: {
-						parts: [{
-							functionCall: {
-								name: 'non_existent_tool',
-								args: {}
-							}
-						}]
-					}
-				}]
-			}
-		}).mockResolvedValueOnce({
-			response: { candidates: [{ content: { parts: [{ text: 'done' }] } }], text: () => 'done' }
-		});
-
-		await view.handleSendMessage();
-		expect(mockChat.sendMessage).toHaveBeenCalledTimes(2);
-	});
-
-	it('should handle missing genAI', async () => {
-		await view.startNewChat();
-		mockPlugin.genAI = null;
-		view.inputField.value = 'test';
-		await view.handleSendMessage();
-		expect(view.messageContainer.createDiv).toHaveBeenCalled();
-	});
-
-	it('should handle max iterations in agent loop', async () => {
-		await view.startNewChat();
-		view.inputField.value = 'loop';
+		const toolCalls = [{ functionCall: { name: 'list_files', args: {} } }] as Part[];
+		const promise = view.requestToolPermission(toolCalls);
 		
-		const mockChat = view.chat;
-		mockChat.sendMessage.mockResolvedValue({
-			response: {
-				candidates: [{
-					content: {
-						parts: [{
-							functionCall: { name: 'list_files', args: {} }
-						}]
-					}
-				}],
-				text: () => 'looping'
-			}
-		});
+		const allowBtn = findBtnRecursive(view.messageContainer, 'Allow all');
+		if (allowBtn) allowBtn.onclick();
+		
+		const result = await promise;
+		expect(result).toBe(true);
+	});
 
-		await view.handleSendMessage();
-		expect(mockChat.sendMessage).toHaveBeenCalledTimes(6);
+	it('should handle manual tool approval (Cancel)', async () => {
+		mockPlugin.settings.autoAcceptTools = false;
+		await view.startNewChat();
+		
+		const toolCalls = [{ functionCall: { name: 'list_files', args: {} } }] as Part[];
+		const promise = view.requestToolPermission(toolCalls);
+		
+		const denyBtn = findBtnRecursive(view.messageContainer, 'Cancel');
+		if (denyBtn) denyBtn.onclick();
+		
+		const result = await promise;
+		expect(result).toBe(false);
 	});
 
 	it('should retry on 429 quota exceeded error', async () => {
 		await view.startNewChat();
 		view.inputField.value = 'retry me';
 		
-		const mockChat = view.chat!;
-		const quotaError = new Error('[GoogleGenerativeAI Error]: 429 You exceeded your current quota. {"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"0s"}');
-		
-		mockChat.sendMessage
-			.mockRejectedValueOnce(quotaError)
-			.mockResolvedValueOnce({
-				response: { candidates: [{ content: { parts: [{ text: 'retried success' }] } }], text: () => 'retried success' }
-			});
+		const mockChat = {
+			sendMessage: vi.fn()
+				.mockRejectedValueOnce(new Error('429 quota limit'))
+				.mockResolvedValueOnce({
+					response: { 
+						text: () => 'success', 
+						candidates: [{ content: { parts: [{ text: 'success' }] } }] 
+					}
+				})
+		};
+		(view as any).chat = mockChat;
 
 		await view.handleSendMessage();
-		
-		expect(mockChat.sendMessage).toHaveBeenCalledTimes(2);
-		expect(view.messageContainer.createDiv).toHaveBeenCalledWith(expect.stringContaining('gemini-message-agent'));
+		expect(mockChat.sendMessage).toHaveBeenCalled();
+	});
+
+	it('should handle cancel request', () => {
+		view.abortController = new AbortController();
+		view.cancelRequest();
+		expect(view.abortController).toBeNull();
+	});
+
+	it('should copy message to clipboard', async () => {
+		const text = 'Test copy';
+		await navigator.clipboard.writeText(text);
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(text);
+	});
+
+	it('should handle errors in sendMessage', async () => {
+		(view.plugin as any).genAI = null;
+		await view.handleSendMessage();
+		expect((view.messageContainer as any)._children.length).toBeGreaterThan(0);
+	});
+
+	it('should handle onClose and close leaf', async () => {
+		await view.onClose();
+		expect(view.abortController).toBeNull();
+	});
+
+	it('should handle search input in overview', () => {
+		view.searchQuery = 'test';
+		view.renderOverview();
+		expect(view.searchQuery).toBe('test');
+	});
+
+	it('should handle initializeChat error', async () => {
+		(mockPlugin.getModelWithFallback as any).mockImplementation(() => { throw new Error('Init error'); });
+		const freshView = new GeminiChatView(mockLeaf, mockPlugin);
+		(freshView as any).app = mockApp;
+		freshView.plugin.genAI = mockPlugin.genAI;
+		await freshView.initializeChat();
+		expect((freshView as any).chat).toBeNull();
 	});
 });

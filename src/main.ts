@@ -10,12 +10,12 @@ const GEMINI_ICON = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.o
 </svg>`;
 
 export const MODEL_DISPLAY_NAMES: Record<string, string> = {
-	'gemini-2.0-flash': 'Gemini 2.0 Flash (Fast)',
-	'gemini-2.0-flash-exp': 'Gemini 2.0 Flash Experimental',
-	'gemini-1.5-pro': 'Gemini 1.5 Pro (Complex Tasks)',
-	'gemini-1.5-flash': 'Gemini 1.5 Flash (Efficient)',
-	'gemini-1.5-flash-8b': 'Gemini 1.5 Flash 8B (Super Fast)',
-	'auto': '✨ Auto-Select (Smart Fallback)'
+	'gemini-2.0-flash': 'Gemini 2.0 flash (fast)',
+	'gemini-2.0-flash-exp': 'Gemini 2.0 flash experimental',
+	'gemini-1.5-pro': 'Gemini 1.5 pro (complex tasks)',
+	'gemini-1.5-flash': 'Gemini 1.5 flash (efficient)',
+	'gemini-1.5-flash-8b': 'Gemini 1.5 flash 8b (super fast)',
+	'auto': '✨ Auto-select (smart fallback)'
 };
 
 interface GeminiAgentSettings {
@@ -40,10 +40,10 @@ export default class GeminiAgentPlugin extends Plugin {
 	availableModels: string[] = ['auto', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
 	conversationManager: ConversationManager;
 
-	async onload() {
+	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.conversationManager = new ConversationManager(this.settings);
-		this.conversationManager.garbageCollect(); // Cleanup old chats
+		this.conversationManager.garbageCollect();
 		await this.logToFile('Plugin loading...');
 		await this.refreshModels();
 
@@ -77,7 +77,7 @@ export default class GeminiAgentPlugin extends Plugin {
 		this.addCommand({
 			id: 'gemini-debug-info',
 			name: 'Debug Gemini plugin state',
-			callback: async () => {
+			callback: () => {
 				const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GEMINI_CHAT);
 				const status = `
 					API Key set: ${!!this.settings.apiKey}
@@ -85,18 +85,20 @@ export default class GeminiAgentPlugin extends Plugin {
 					Available models: ${this.availableModels.length}
 					Active leaves: ${leaves.length}
 				`;
-				await this.logToFile(`Debug Info requested: ${status}`);
-				new Notice(`Gemini Debug: ${leaves.length} leaves found. Check log file for details.`);
+				void this.logToFile(`Debug info requested: ${status}`).then(() => {
+					new Notice(`Gemini debug: ${leaves.length} leaves found. Check log file for details.`);
+				});
 			}
 		});
 
 		this.addCommand({
 			id: 'refresh-gemini-models',
 			name: 'Refresh available models',
-			callback: async () => {
-				await this.refreshModels();
-				await this.logToFile('Models refreshed manually');
-				new Notice('Gemini models refreshed');
+			callback: () => {
+				void this.refreshModels().then(() => {
+					void this.logToFile('Models refreshed manually');
+					new Notice('Gemini models refreshed');
+				});
 			}
 		});
 
@@ -120,7 +122,7 @@ export default class GeminiAgentPlugin extends Plugin {
 		await this.logToFile('Plugin loaded successfully');
 	}
 
-	async refreshModels() {
+	refreshModels = async (): Promise<void> => {
 		if (!this.genAI) return;
 		try {
 			const response = await requestUrl({
@@ -129,17 +131,17 @@ export default class GeminiAgentPlugin extends Plugin {
 			});
 			const data = response.json;
 			if (data.models) {
-				const apiModels = data.models
-					.map((m: { name: string }) => m.name.replace('models/', ''))
-					.filter((name: string) => name.includes('gemini'));
+				const apiModels = (data.models as Array<{ name: string }>)
+					.map((m) => m.name.replace('models/', ''))
+					.filter((name) => name.includes('gemini'));
 				this.availableModels = ['auto', ...apiModels];
 			}
 		} catch (error) {
 			console.error('Failed to fetch models:', error);
 		}
-	}
+	};
 
-	async getModelWithFallback(preferredModel: string): Promise<GenerativeModel> {
+	getModelWithFallback = (preferredModel: string): GenerativeModel => {
 		if (!this.genAI) throw new Error('GenAI not initialized');
 		
 		let modelsToTry = [preferredModel];
@@ -164,9 +166,9 @@ export default class GeminiAgentPlugin extends Plugin {
 			}
 		}
 		throw lastError || new Error('Failed to initialize model');
-	}
+	};
 
-	async summarizeNote(file: TFile) {
+	summarizeNote = async (file: TFile): Promise<void> => {
 		if (!this.genAI || !this.settings) {
 			new Notice('Gemini API key not configured');
 			return;
@@ -176,7 +178,7 @@ export default class GeminiAgentPlugin extends Plugin {
 		
 		try {
 			const content = await this.app.vault.read(file);
-			const model = await this.getModelWithFallback(this.settings.modelName);
+			const model = this.getModelWithFallback(this.settings.modelName);
 			
 			const prompt = `Fasse folgende Notiz kurz und prägnant zusammen:\n\n${content}`;
 			const result = await model.generateContent(prompt);
@@ -192,9 +194,9 @@ export default class GeminiAgentPlugin extends Plugin {
 			new Notice(`Error: ${error instanceof Error ? error.message : String(error)}`);
 			console.error(error);
 		}
-	}
+	};
 
-	async logToFile(message: string, isError = false) {
+	logToFile = async (message: string, isError = false): Promise<void> => {
 		const timestamp = new Date().toISOString();
 		const logLine = `[${timestamp}] ${isError ? 'ERROR' : 'INFO'} ${message}\n`;
 		console.debug(`Gemini: ${message}`);
@@ -211,9 +213,9 @@ export default class GeminiAgentPlugin extends Plugin {
 		} catch (e) {
 			console.error('Failed to write to log file:', e);
 		}
-	}
+	};
 
-	async activateView(center = false) {
+	activateView = async (center = false): Promise<void> => {
 		try {
 			await this.logToFile(`Activating view (center: ${center})...`);
 			const { workspace } = this.app;
@@ -247,20 +249,20 @@ export default class GeminiAgentPlugin extends Plugin {
 				new Notice('Gemini chat opened');
 			} else {
 				await this.logToFile('Failed to find or create leaf (leaf is null)', true);
-				new Notice('Error: Could not open Gemini chat. See log file.');
+				new Notice('Error: could not open Gemini chat. See log file.');
 			}
 		} catch (error) {
-			await this.logToFile(`CRITICAL ERROR in activateView: ${error.message}`, true);
-			if (error.stack) await this.logToFile(`Stack: ${error.stack}`, true);
+			await this.logToFile(`CRITICAL ERROR in activateView: ${error instanceof Error ? error.message : String(error)}`, true);
+			if (error instanceof Error && error.stack) await this.logToFile(`Stack: ${error.stack}`, true);
 			new Notice('Critical error opening Gemini chat. Check log file.');
 		}
-	}
+	};
 
-	onunload() {
+	onunload(): void {
 		console.debug('Gemini agent plugin unloaded');
 	}
 
-	async loadSettings() {
+	loadSettings = async (): Promise<void> => {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 
 		const secretKey = this.app.secretStorage.getSecret('gemini-api-key');
@@ -271,9 +273,9 @@ export default class GeminiAgentPlugin extends Plugin {
 		if (this.settings.apiKey) {
 			this.genAI = new GoogleGenerativeAI(this.settings.apiKey);
 		}
-	}
+	};
 
-	async saveSettings() {
+	saveSettings = async (): Promise<void> => {
 		if (this.conversationManager) {
 			this.settings.conversations = this.conversationManager.toJSON();
 		}
@@ -292,7 +294,7 @@ export default class GeminiAgentPlugin extends Plugin {
 		}
 
 		new Notice('Gemini settings saved');
-	}
+	};
 }
 
 export class GeminiAgentSettingTab extends PluginSettingTab {
@@ -318,9 +320,9 @@ export class GeminiAgentSettingTab extends PluginSettingTab {
 			.addText(text => text
 				.setPlaceholder('Enter your API key')
 				.setValue(this.plugin.settings.apiKey)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.apiKey = value;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 				.inputEl.type = 'password'
 			);
@@ -333,9 +335,9 @@ export class GeminiAgentSettingTab extends PluginSettingTab {
 					dropdown.addOption(model, MODEL_DISPLAY_NAMES[model] || model);
 				});
 				dropdown.setValue(this.plugin.settings.modelName)
-					.onChange(async (value) => {
+					.onChange((value) => {
 						this.plugin.settings.modelName = value;
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 					});
 			});
 
@@ -344,9 +346,9 @@ export class GeminiAgentSettingTab extends PluginSettingTab {
 			.setDesc('If enabled, the agent can execute tools automatically. If disabled, you will be asked to approve each action in the chat.')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.autoAcceptTools)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.autoAcceptTools = value;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 
@@ -356,9 +358,9 @@ export class GeminiAgentSettingTab extends PluginSettingTab {
 			.addTextArea(text => text
 				.setPlaceholder('Enter paths to exclude')
 				.setValue(this.plugin.settings.excludedPaths)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.excludedPaths = value;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 	}

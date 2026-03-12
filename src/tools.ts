@@ -42,7 +42,7 @@ export interface ObsidianTools {
 }
 
 export const getObsidianTools = (app: App, excludedPaths: string[] = []): ObsidianTools => {
-	const isExcluded = (path: string) => {
+	const isExcluded = (path: string): boolean => {
 		return excludedPaths.some(excluded => path.startsWith(excluded.trim()));
 	};
 
@@ -55,11 +55,11 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 	};
 
 	return {
-		create_note: async ({ path, content, tags }) => {
-			if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+		create_note: async ({ path, content, tags }): Promise<string> => {
+			if (isExcluded(path)) return `Error: access to ${path} is excluded in settings.`;
 			try {
-				const fullContent = tags && tags.length > 0 
-					? `---\ntags: [${tags.join(', ')}]\n---\n${content}`
+				const fullContent = (tags as string[] | undefined) && (tags as string[]).length > 0 
+					? `---\ntags: [${(tags as string[]).join(', ')}]\n---\n${content}`
 					: content;
 				
 				const file = await app.vault.create(path, fullContent);
@@ -68,51 +68,54 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 				return `Error creating note: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		update_note: async ({ path, new_content }) => {
-			if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+		update_note: async ({ path, new_content }): Promise<string> => {
+			if (isExcluded(path)) return `Error: access to ${path} is excluded in settings.`;
 			try {
 				const file = app.vault.getAbstractFileByPath(path);
 				if (file && isFile(file)) {
-					await app.vault.modify(file, new_content);
+					await app.vault.modify(file, new_content as string);
 					return `Successfully updated note at ${path}`;
 				}
-				return `Error: File not found at ${path}`;
+				return `Error: file not found at ${path}`;
 			} catch (error) {
 				return `Error updating note: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		read_note: async ({ path }) => {
-			if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+		read_note: async ({ path }): Promise<string> => {
+			if (isExcluded(path as string)) return `Error: access to ${path} is excluded in settings.`;
 			try {
-				const file = app.vault.getAbstractFileByPath(path);
+				const file = app.vault.getAbstractFileByPath(path as string);
 				if (file && isFile(file)) {
 					return await app.vault.cachedRead(file);
 				}
-				return `Error: File not found at ${path}`;
+				return `Error: file not found at ${path}`;
 			} catch (error) {
 				return `Error reading note: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		get_metadata: ({ path }) => {
-			if (isExcluded(path)) return Promise.resolve(`Error: Access to ${path} is excluded in settings.`);
+		get_metadata: (args): Promise<string> => {
+			const path = args.path as string;
+			if (isExcluded(path)) return Promise.resolve(`Error: access to ${path} is excluded in settings.`);
 			try {
 				const file = app.vault.getAbstractFileByPath(path);
 				if (file && isFile(file)) {
 					const cache = app.metadataCache.getFileCache(file);
 					return Promise.resolve(JSON.stringify(cache, null, 2));
 				}
-				return Promise.resolve(`Error: File not found at ${path}`);
+				return Promise.resolve(`Error: file not found at ${path}`);
 			} catch (error) {
 				return Promise.resolve(`Error getting metadata: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
-		list_files: ({ folder_path, recursive }) => {
+		list_files: (args): Promise<string> => {
+			const folder_path = args.folder_path as string | undefined;
+			const recursive = args.recursive as boolean | undefined;
 			try {
 				const folder = app.vault.getAbstractFileByPath(folder_path || '/');
 				if (folder && isFolder(folder)) {
 					const results: string[] = [];
 					
-					const walk = (f: TFolder | TFile) => {
+					const walk = (f: TFolder | TFile): void => {
 						if (isExcluded(f.path)) return;
 						results.push(`${isFolder(f) ? '[DIR] ' : ''}${f.path}`);
 						if (recursive && isFolder(f)) {
@@ -132,73 +135,74 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 
 					return Promise.resolve(results.join('\n') || 'Folder is empty or all contents are excluded');
 				}
-				return Promise.resolve(`Error: Folder not found at ${folder_path}`);
+				return Promise.resolve(`Error: folder not found at ${folder_path}`);
 			} catch (error) {
 				return Promise.resolve(`Error listing files: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
-		create_canvas: async ({ path, nodes }) => {
-			if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+		create_canvas: async ({ path, nodes }): Promise<string> => {
+			if (isExcluded(path as string)) return `Error: access to ${path} is excluded in settings.`;
 			try {
 				const canvasData = {
-					nodes: nodes || [],
+					nodes: (nodes as CanvasNode[] | undefined) || [],
 					edges: []
 				};
-				const file = await app.vault.create(path, JSON.stringify(canvasData, null, 2));
+				const file = await app.vault.create(path as string, JSON.stringify(canvasData, null, 2));
 				return `Successfully created canvas at ${file.path}`;
 			} catch (error) {
 				return `Error creating canvas: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		add_node_to_canvas: async ({ path, node }) => {
-			if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+		add_node_to_canvas: async ({ path, node }): Promise<string> => {
+			if (isExcluded(path as string)) return `Error: access to ${path} is excluded in settings.`;
 			try {
-				const file = app.vault.getAbstractFileByPath(path);
+				const file = app.vault.getAbstractFileByPath(path as string);
 				if (file && isFile(file)) {
 					const content = await app.vault.read(file);
 					const data = JSON.parse(content);
-					data.nodes.push(node);
+					data.nodes.push(node as CanvasNode);
 					await app.vault.modify(file, JSON.stringify(data, null, 2));
 					return `Successfully added node to canvas at ${path}`;
 				}
-				return `Error: Canvas file not found at ${path}`;
+				return `Error: canvas file not found at ${path}`;
 			} catch (error) {
 				return `Error adding node to canvas: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		create_folder: async ({ path }) => {
+		create_folder: async ({ path }): Promise<string> => {
 			try {
-				await app.vault.createFolder(path);
+				await app.vault.createFolder(path as string);
 				return `Successfully created folder at ${path}`;
 			} catch (error) {
 				return `Error creating folder: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		execute_command: ({ command_id }) => {
+		execute_command: (args): Promise<string> => {
+			const command_id = args.command_id as string;
 			try {
-				// Accessing internal command manager
 				const commands = (app as ObsidianApp).commands;
 				if (commands && commands.executeCommandById(command_id)) {
 					return Promise.resolve(`Successfully executed command ${command_id}`);
 				}
-				return Promise.resolve(`Error: Command ${command_id} not found or failed to execute`);
+				return Promise.resolve(`Error: command ${command_id} not found or failed to execute`);
 			} catch (error) {
 				return Promise.resolve(`Error executing command: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
-		list_commands: () => {
+		list_commands: (): Promise<string> => {
 			try {
 				const commands = (app as ObsidianApp).commands;
-				if (!commands || !commands.listCommands) return Promise.resolve('Error: Could not list commands');
+				if (!commands || !commands.listCommands) return Promise.resolve('Error: could not list commands');
 				const list = commands.listCommands()
 					.map((c: ObsidianCommand) => `${c.id}: ${c.name}`)
 					.join('\n');
-				return Promise.resolve(`Available Commands:\n${list}`);
+				return Promise.resolve(`Available commands:\n${list}`);
 			} catch (error) {
 				return Promise.resolve(`Error listing commands: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
-		global_search: async ({ query }) => {
+		global_search: async (args): Promise<string> => {
+			const query = args.query as string;
 			try {
 				const files = app.vault.getMarkdownFiles();
 				const results = [];
@@ -210,7 +214,7 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 					if (content.toLowerCase().includes(lowerQuery)) {
 						results.push(file.path);
 					}
-					if (results.length >= 10) break; // Limit results for context
+					if (results.length >= 10) break;
 				}
 				return results.length > 0 
 					? `Found query in files:\n${results.join('\n')}` 
@@ -219,14 +223,14 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 				return `Error searching vault: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		get_active_note: async () => {
+		get_active_note: async (): Promise<string> => {
 			try {
 				const file = app.workspace.getActiveFile();
 				if (file) {
 					const content = await app.vault.read(file);
-					return `Active File: ${file.path}\nContent:\n${content}`;
+					return `Active file: ${file.path}\nContent:\n${content}`;
 				}
-				return 'Error: No active file found';
+				return 'Error: no active file found';
 			} catch (error) {
 				return `Error getting active file: ${error instanceof Error ? error.message : String(error)}`;
 			}

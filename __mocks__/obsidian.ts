@@ -9,6 +9,9 @@ export const requestUrl = vi.fn().mockResolvedValue({
 
 const createMockElement = (tag?: string, options?: any) => {
 	const children: any[] = [];
+	const text = (typeof options === 'string' ? options : options?.text) || '';
+	if (text) children.push(text);
+
 	const el: any = {
 		addEventListener: vi.fn(),
 		appendChild: vi.fn().mockImplementation((child) => {
@@ -25,56 +28,41 @@ const createMockElement = (tag?: string, options?: any) => {
 			children.push(child);
 			return child;
 		}),
+		createSpan: vi.fn().mockImplementation((opts) => {
+			const child = createMockElement('span', opts);
+			children.push(child);
+			return child;
+		}),
 		type: '',
 		value: '',
 		onclick: null as any,
-		textContent: (typeof options === 'string' ? options : options?.text) || '',
-		querySelector: vi.fn().mockImplementation((sel) => {
-			if (sel === 'h4') return children.find(c => c._tag === 'h4');
-			if (sel === '.gemini-message-content') {
-				const found = children.find(c => c._cls === 'gemini-message-content');
-				if (found) return found;
-				// recursive search
-				for (const child of children) {
-					const deep = child.querySelector(sel);
-					if (deep && deep.textContent !== '') return deep; // dummy check for found
-				}
-			}
-			if (sel === '.gemini-header-title') return children.find(c => c._cls === 'gemini-header-title');
-			// Return a mock element instead of empty object to avoid "empty is not a function"
-			return createMockElement('div', { cls: 'mock-found' });
-		}),
+		textContent: text,
 		addClass: vi.fn().mockImplementation((cls) => { el._cls = cls; return el; }),
 		removeClass: vi.fn().mockReturnThis(),
 		empty: vi.fn().mockImplementation(() => { children.length = 0; }),
-		remove: vi.fn(),
+		remove: vi.fn().mockImplementation(() => {
+			children.length = 0;
+		}),
 		addOption: vi.fn().mockReturnThis(),
 		setPlaceholder: vi.fn().mockReturnThis(),
 		setValue: vi.fn().mockReturnThis(),
-		onChange: vi.fn().mockImplementation((changeCb: any) => {
-			if (typeof changeCb === 'function') {
-				// can be triggered manually in tests
-			}
-			return el;
-		}),
+		setCssProps: vi.fn().mockReturnThis(),
+		onChange: vi.fn().mockReturnThis(),
 		inputEl: { type: '' },
 		style: {
-			height: '',
-			setProperty: vi.fn().mockImplementation((prop, val) => {
-				if (prop === 'height') el.style.height = val;
-			})
+			height: ''
 		},
 		scrollTop: 0,
 		scrollHeight: 0,
 		_tag: tag,
-		_cls: typeof options === 'object' ? options?.cls : '',
+		_cls: typeof options === 'object' ? options?.cls : (typeof options === 'string' ? options : ''),
+		_children: children,
 		firstElementChild: null as any
 	};
-	el.inputEl = el; // For Setting component compatibility
+	el.inputEl = el; 
 	
-	// Mock firstElementChild to be the first child if it exists
 	Object.defineProperty(el, 'firstElementChild', {
-		get: () => children[0] || null
+		get: () => children.find(c => typeof c === 'object') || null
 	});
 
 	return el;
@@ -114,7 +102,7 @@ export class Setting {
 	setHeading = vi.fn().mockReturnThis();
 	addText = vi.fn().mockImplementation((cb: any) => {
 		const el = createMockElement();
-		el.onChange.mockImplementation((changeCb: any) => {
+		el.onChange = vi.fn().mockImplementation((changeCb: any) => {
 			changeCb('new-value');
 			return el;
 		});
@@ -123,7 +111,7 @@ export class Setting {
 	});
 	addDropdown = vi.fn().mockImplementation((cb: any) => {
 		const el = createMockElement();
-		el.onChange.mockImplementation((changeCb: any) => {
+		el.onChange = vi.fn().mockImplementation((changeCb: any) => {
 			changeCb('new-model');
 			return el;
 		});
@@ -132,7 +120,7 @@ export class Setting {
 	});
 	addToggle = vi.fn().mockImplementation((cb: any) => {
 		const el = createMockElement();
-		el.onChange.mockImplementation((changeCb: any) => {
+		el.onChange = vi.fn().mockImplementation((changeCb: any) => {
 			changeCb(true);
 			return el;
 		});
@@ -141,7 +129,7 @@ export class Setting {
 	});
 	addTextArea = vi.fn().mockImplementation((cb: any) => {
 		const el = createMockElement();
-		el.onChange.mockImplementation((changeCb: any) => {
+		el.onChange = vi.fn().mockImplementation((changeCb: any) => {
 			changeCb('new-paths');
 			return el;
 		});
@@ -158,7 +146,7 @@ export class ItemView {
 	constructor(public leaf: any) {
 		this.contentEl = createMockElement();
 		this.containerEl = createMockElement();
-		this.containerEl.children = [null, this.contentEl];
+		this.containerEl._children = [null, this.contentEl];
 	}
 	async onOpen() {}
 	async onClose() {}
@@ -167,7 +155,7 @@ export class ItemView {
 }
 
 export class SuggestModal<T> {
-	constructor(public app: App) {}
+	constructor(public app: any) {}
 	open() {}
 	close() {}
 	setPlaceholder(p: string) {}
@@ -180,7 +168,10 @@ export class FuzzySuggestModal<T> extends SuggestModal<T> {
 }
 
 export class MarkdownRenderer {
-	static render = vi.fn().mockResolvedValue(undefined);
+	static render = vi.fn().mockImplementation((app, text, el) => {
+		el.textContent = text;
+		return Promise.resolve();
+	});
 }
 
 export class TFile {}
