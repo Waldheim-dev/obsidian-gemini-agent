@@ -1,6 +1,6 @@
-# Obsidian Gemini AI Agent
+# Gemini AI Agent
 
-A professional-grade Obsidian plugin that integrates Google Gemini as a powerful, autonomous AI agent. Designed for researchers, writers, and power-users who want more than just a chatbot.
+A professional-grade plugin that integrates Google Gemini as a powerful, autonomous AI agent. Designed for researchers, writers, and power-users who want more than just a chatbot.
 
 ![GitHub Release](https://img.shields.io/github/v/release/Waldheim-dev/obsidian-gemini-agent?style=flat-square)
 [![CI](https://github.com/Waldheim-dev/obsidian-gemini-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Waldheim-dev/obsidian-gemini-agent/actions/workflows/ci.yml)
@@ -10,7 +10,7 @@ A professional-grade Obsidian plugin that integrates Google Gemini as a powerful
 
 ## 🌟 Why this Plugin?
 
-Unlike standard AI plugins, the **Gemini AI Agent** is designed to be **agentic**. It doesn't just talk to you; it can see your vault, search your notes, execute Obsidian commands, and organize your files—all while keeping your privacy a top priority.
+Unlike standard AI plugins, the **Gemini AI Agent** is designed to be **agentic**. It doesn't just talk to you; it can see your vault, search your notes, execute commands, and organize your files—all while keeping your privacy a top priority.
 
 ## 🚀 Features
 
@@ -24,19 +24,19 @@ Gemini can autonomously perform the following actions:
 - **Note Management**: Create, read, and update notes atomically.
 - **Folder Control**: Create and organize folders.
 - **Global Search**: Search through the content of your entire vault.
-- **Command Execution**: Run any Obsidian command (e.g., toggle sidebars, open specific views).
+- **Command Execution**: Run any plugin or core command (e.g., toggle sidebars, open specific views).
 - **Canvas Support**: Create and modify visual mind-maps via `.canvas` files.
 
 ### 🎨 Modern UI/UX
 - **Conversation Caching**: Persistent chat history with a beautiful "Boxed List" overview.
 - **Auto-Titling**: Automatically generates concise titles for your chats.
-- **Markdown Native**: Responses are rendered using Obsidian's native Markdown engine (tables, code blocks, math).
+- **Markdown Native**: Responses are rendered using the native Markdown engine (tables, code blocks, math).
 - **Thinking State**: Visual feedback during processing with productivity tips and quotes.
 - **Copy & Regenerate**: Easy actions for each message, including one-click copying and re-generating answers.
 
 ### 🔒 Privacy & Performance
 - **Exclusion Lists**: Prevent the AI from ever seeing specific folders or files.
-- **Secure Key Storage**: Uses the system keychain via Obsidian's SecretStorage API.
+- **Secure Key Storage**: Uses the system keychain via the SecretStorage API.
 - **Context Shrinking**: Intelligent sliding window for history to keep token usage efficient.
 - **Garbage Collector**: Automatically cleans up very old or empty chats to save storage.
 

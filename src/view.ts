@@ -76,7 +76,7 @@ export class GeminiChatView extends ItemView {
 		}
 	}
 
-	async onOpen() {
+	onOpen() {
 		this.renderOverview();
 	}
 
@@ -223,8 +223,8 @@ export class GeminiChatView extends ItemView {
 		});
 
 		this.inputField.addEventListener('input', () => {
-			this.inputField.style.setProperty('height', 'auto');
-			this.inputField.style.setProperty('height', this.inputField.scrollHeight + 'px');
+			this.inputField.setCssProps({ height: 'auto' });
+			this.inputField.setCssProps({ height: this.inputField.scrollHeight + 'px' });
 		});
 
 		this.inputField.addEventListener('keydown', (e) => {
