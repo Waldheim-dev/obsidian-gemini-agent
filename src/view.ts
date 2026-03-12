@@ -394,14 +394,29 @@ Guidelines:
 						} catch (error) {
 							const errorText = String(error);
 							if (errorText.includes('429') || errorText.includes('quota')) {
+								if (errorText.includes('limit: 0')) {
+									throw new Error("Quota exceeded: daily limit reached for this model. Try switching to a different model (e.g., Gemini 1.5 Flash).", { cause: error });
+								}
+
 								retryCount++;
 								if (retryCount <= MAX_RETRIES) {
 									let delay = 22000; // Default 22s
 									const match = errorText.match(/retryDelay":"(\d+)s/);
 									if (match) delay = parseInt(match[1]) * 1000 + 1000;
 									
-									toolStatus.textContent = `Quota exceeded. Retrying in ${Math.round(delay/1000)}s... (Attempt ${retryCount}/${MAX_RETRIES})`;
+									let secondsLeft = Math.round(delay/1000);
+									const interval = setInterval(() => {
+										secondsLeft--;
+										if (secondsLeft > 0) {
+											toolStatus.textContent = `Quota exceeded. Retrying in ${secondsLeft}s... (Attempt ${retryCount}/${MAX_RETRIES})`;
+										} else {
+											clearInterval(interval);
+										}
+									}, 1000);
+
+									toolStatus.textContent = `Quota exceeded. Retrying in ${secondsLeft}s... (Attempt ${retryCount}/${MAX_RETRIES})`;
 									await new Promise(resolve => setTimeout(resolve, delay));
+									clearInterval(interval);
 									continue;
 								}
 							}
@@ -483,7 +498,8 @@ Guidelines:
 				if (error instanceof Error && error.name === 'AbortError') {
 					await this.appendMessage('agent', '_Request cancelled_');
 				} else {
-					await this.appendMessage('agent', `**Error:** ${error instanceof Error ? error.message : String(error)}`);
+					const errorMsg = error instanceof Error ? error.message : String(error);
+					await this.appendMessage('agent', `**Error:** ${errorMsg}`);
 				}
 			} finally {
 				this.abortController = null;
