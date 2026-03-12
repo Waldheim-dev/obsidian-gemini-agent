@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/Waldheim-dev/obsidian-gemini-agent/compare/1.0.0...1.1.0) (2026-03-12)
+
+
+### Features
+
+* improve quota error handling with countdown and daily limit detection ([bced8f8](https://github.com/Waldheim-dev/obsidian-gemini-agent/commit/bced8f82df3a3f00f21560ba36592d3da0994a06))
+
 # 1.0.0 (2026-03-12)
 
 
