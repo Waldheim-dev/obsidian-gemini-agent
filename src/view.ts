@@ -261,9 +261,29 @@ export class GeminiChatView extends ItemView {
 			try {
 				const modelId = this.currentConversation?.model || this.plugin.settings.modelName;
 				const model = await this.plugin.getModelWithFallback(modelId);
+
+				const systemInstruction = `You are a professional, autonomous AI agent integrated into an Obsidian vault. 
+Your goal is to help the user manage their knowledge effectively. 
+
+Capabilities & Autonomy:
+1. Proactive Exploration: If you need more context to answer a question, use 'list_files', 'global_search', or 'read_note' immediately without asking for permission.
+2. Organization: When the user asks to "organize", "save", or "research" something, proactively decide to create folders, create notes, or update existing ones.
+3. Structure Awareness: Always keep track of the vault structure. If a task involves multiple files, read them all to ensure consistency.
+4. Tool Usage: You have access to specialized Obsidian tools. Use them strategically to perform actions directly in the vault. 
+
+Guidelines:
+- If a request is ambiguous, explore the vault first to find relevant information.
+- When creating notes, use clean Markdown and appropriate tags.
+- Be concise but thorough. 
+- You act on behalf of the user; if they give you a task that implies vault modification (e.g., "Summarize my meetings from last week into a new note"), do it directly.`;
+
 				const modelWithTools = this.plugin.genAI.getGenerativeModel({ 
 					model: model.model,
-					tools: [{ functionDeclarations: toolDeclarations }]
+					tools: [{ functionDeclarations: toolDeclarations }],
+					systemInstruction: {
+						role: 'system',
+						parts: [{ text: systemInstruction }]
+					}
 				});
 
 				// API only accepts 'role' and 'parts'. Strip 'timestamp' and other local fields.

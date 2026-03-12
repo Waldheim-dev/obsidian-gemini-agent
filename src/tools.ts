@@ -31,7 +31,7 @@ export interface ObsidianTools {
 	update_note: (args: { path: string; new_content: string }) => Promise<string>;
 	read_note: (args: { path: string }) => Promise<string>;
 	get_metadata: (args: { path: string }) => Promise<string>;
-	list_files: (args: { folder_path: string }) => Promise<string>;
+	list_files: (args: { folder_path: string; recursive?: boolean }) => Promise<string>;
 	create_canvas: (args: { path: string; nodes: CanvasNode[] }) => Promise<string>;
 	add_node_to_canvas: (args: { path: string; node: CanvasNode }) => Promise<string>;
 	create_folder: (args: { path: string }) => Promise<string>;
@@ -106,15 +106,31 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 				return Promise.resolve(`Error getting metadata: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
-		list_files: ({ folder_path }) => {
+		list_files: ({ folder_path, recursive }) => {
 			try {
 				const folder = app.vault.getAbstractFileByPath(folder_path || '/');
 				if (folder && isFolder(folder)) {
-					const files = folder.children
-						.filter(f => !isExcluded(f.path)) 
-						.map(f => `${isFolder(f) ? '[DIR] ' : ''}${f.path}`)
-						.join('\n');
-					return Promise.resolve(files || 'Folder is empty or all contents are excluded');
+					const results: string[] = [];
+					
+					const walk = (f: TFolder | TFile) => {
+						if (isExcluded(f.path)) return;
+						results.push(`${isFolder(f) ? '[DIR] ' : ''}${f.path}`);
+						if (recursive && isFolder(f)) {
+							f.children.forEach(child => {
+								if (isFile(child) || isFolder(child)) walk(child);
+							});
+						}
+					};
+
+					if (recursive) {
+						walk(folder);
+					} else {
+						folder.children.forEach(child => {
+							if (isFile(child) || isFolder(child)) walk(child);
+						});
+					}
+
+					return Promise.resolve(results.join('\n') || 'Folder is empty or all contents are excluded');
 				}
 				return Promise.resolve(`Error: Folder not found at ${folder_path}`);
 			} catch (error) {
@@ -221,126 +237,127 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 export const toolDeclarations = [
 	{
 		name: "create_note",
-		description: "Erstellt eine neue Notiz im Vault",
+		description: "Creates a new note in the vault. Use this to save research, summaries, or new information.",
 		parameters: {
 			type: "object",
 			properties: {
-				path: { type: "string", description: "Der Pfad der neuen Datei (z.B. 'Notizen/NeueNotiz.md')" },
-				content: { type: "string", description: "Der Inhalt der Notiz" },
-				tags: { type: "array", items: { type: "string" }, description: "Optionale Tags für die Notiz" }
+				path: { type: "string", description: "The full path for the new file (e.g., 'Folder/Note.md'). Must end in .md" },
+				content: { type: "string", description: "The markdown content for the note." },
+				tags: { type: "array", items: { type: "string" }, description: "Optional tags to add to the frontmatter." }
 			},
 			required: ["path", "content"]
 		}
 	},
 	{
 		name: "update_note",
-		description: "Ändert den Inhalt einer bestehenden Notiz",
+		description: "Updates the content of an existing note. Use this to refine notes or add more information.",
 		parameters: {
 			type: "object",
 			properties: {
-				path: { type: "string", description: "Der Pfad der zu ändernden Datei" },
-				new_content: { type: "string", description: "Der neue Inhalt der Datei" }
+				path: { type: "string", description: "The path of the file to update." },
+				new_content: { type: "string", description: "The complete new content for the file." }
 			},
 			required: ["path", "new_content"]
 		}
 	},
 	{
 		name: "read_note",
-		description: "Liest den Inhalt einer Notiz für den Kontext",
+		description: "Reads the full content of a note. Use this to gain context from files mentioned by the user or found via search.",
 		parameters: {
 			type: "object",
 			properties: {
-				path: { type: "string", description: "Der Pfad der zu lesenden Datei" }
+				path: { type: "string", description: "The path of the file to read." }
 			},
 			required: ["path"]
 		}
 	},
 	{
 		name: "get_metadata",
-		description: "Extrahiert Frontmatter und Verlinkungen einer Datei",
+		description: "Extracts frontmatter and links from a file. Use this to understand the relationships and tags of a note.",
 		parameters: {
 			type: "object",
 			properties: {
-				path: { type: "string", description: "Der Pfad der Datei" }
+				path: { type: "string", description: "The path of the file." }
 			},
 			required: ["path"]
 		}
 	},
 	{
 		name: "list_files",
-		description: "Listet Dateien in einem bestimmten Ordner auf",
+		description: "Lists files and folders in the vault. Use this to explore the structure or check if a file exists.",
 		parameters: {
 			type: "object",
 			properties: {
-				folder_path: { type: "string", description: "Der Pfad des Ordners (leer lassen für den Root-Ordner)" }
+				folder_path: { type: "string", description: "The folder path (leave empty for root '/')." },
+				recursive: { type: "boolean", description: "If true, lists all nested files and subfolders recursively." }
 			}
 		}
 	},
 	{
 		name: "create_canvas",
-		description: "Erstellt eine neue Canvas-Datei (.canvas)",
+		description: "Creates a new .canvas file. Use this for visual mapping or workflows.",
 		parameters: {
 			type: "object",
 			properties: {
-				path: { type: "string", description: "Der Pfad der neuen Canvas-Datei (z.B. 'Design/Workflow.canvas')" },
-				nodes: { type: "array", items: { type: "object" }, description: "Anfängliche Knoten für den Canvas" }
+				path: { type: "string", description: "The full path for the canvas file (e.g., 'Diagrams/Map.canvas')." },
+				nodes: { type: "array", items: { type: "object" }, description: "Initial nodes for the canvas." }
 			},
 			required: ["path"]
 		}
 	},
 	{
 		name: "add_node_to_canvas",
-		description: "Fügt einen Knoten zu einer bestehenden Canvas-Datei hinzu",
+		description: "Adds a node to an existing canvas file.",
 		parameters: {
 			type: "object",
 			properties: {
-				path: { type: "string", description: "Der Pfad der Canvas-Datei" },
-				node: { type: "object", description: "Der hinzuzufügende Knoten (mit id, x, y, width, height, type, text/file/etc.)" }
+				path: { type: "string", description: "The path of the canvas file." },
+				node: { type: "object", description: "The node object with id, x, y, width, height, type, and text/file." }
 			},
 			required: ["path", "node"]
 		}
 	},
 	{
 		name: "create_folder",
-		description: "Erstellt einen neuen Ordner im Vault",
+		description: "Creates a new folder in the vault. Use this to organize files into a hierarchy.",
 		parameters: {
 			type: "object",
 			properties: {
-				path: { type: "string", description: "Der Pfad des neuen Ordners (z.B. 'Projekte/AI-Agent')" }
+				path: { type: "string", description: "The path of the new folder (e.g., 'Projects/Research')." }
 			},
 			required: ["path"]
 		}
 	},
 	{
 		name: "execute_command",
-		description: "Führt einen Obsidian-Befehl anhand seiner ID aus (entspricht der Command Palette)",
+		description: "Executes an internal Obsidian command by its ID. Use this to trigger UI actions or plugin features.",
 		parameters: {
 			type: "object",
 			properties: {
-				command_id: { type: "string", description: "Die ID des Befehls (z.B. 'app:toggle-left-sidebar')" }
+				command_id: { type: "string", description: "The ID of the command (e.g., 'app:toggle-left-sidebar')." }
 			},
 			required: ["command_id"]
 		}
 	},
 	{
 		name: "list_commands",
-		description: "Listet alle verfügbaren Obsidian-Befehle auf, damit der Agent weiß, was er steuern kann",
+		description: "Lists all available commands and their IDs. Use this to discover what actions you can perform.",
 		parameters: { type: "object", properties: {} }
 	},
 	{
 		name: "global_search",
-		description: "Sucht im gesamten Vault nach einem bestimmten Textinhalt (Inhaltssuche)",
+		description: "Performs a full-text search across all markdown files in the vault. Use this to find specific information when you don't know the exact file path.",
 		parameters: {
 			type: "object",
 			properties: {
-				query: { type: "string", description: "Der zu suchende Text" }
+				query: { type: "string", description: "The text to search for." }
 			},
 			required: ["query"]
 		}
 	},
 	{
 		name: "get_active_note",
-		description: "Holt den Pfad und Inhalt der aktuell im Editor geöffneten Notiz",
+		description: "Retrieves the path and content of the note currently open in the editor. Use this to get immediate context on what the user is working on.",
 		parameters: { type: "object", properties: {} }
 	}
 ];
