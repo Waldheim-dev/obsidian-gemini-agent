@@ -10,6 +10,9 @@ export default {
     ['@semantic-release/npm', {
       npmPublish: false,
     }],
+    ['@semantic-release/exec', {
+      prepareCmd: "sed -i 's/\"version\": \".*\"/\"version\": \"${nextRelease.version}\"/' manifest.json",
+    }],
     ['@semantic-release/git', {
       assets: ['package.json', 'manifest.json', 'CHANGELOG.md'],
       message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}',

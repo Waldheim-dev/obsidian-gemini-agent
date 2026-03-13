@@ -31,7 +31,7 @@ __export(main_exports, {
   default: () => GeminiAgentPlugin2
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // node_modules/.pnpm/@google+generative-ai@0.24.1/node_modules/@google/generative-ai/dist/index.mjs
 var SchemaType;
@@ -1041,27 +1041,31 @@ var GoogleGenerativeAI = class {
 };
 
 // src/view.ts
-var import_obsidian2 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 
 // src/tools.ts
+var import_obsidian = require("obsidian");
 var getObsidianTools = (app, excludedPaths = []) => {
   const isExcluded = (path) => {
     return excludedPaths.some((excluded) => path.startsWith(excluded.trim()));
   };
   const isFile = (file) => {
-    return "extension" in file;
+    return file instanceof import_obsidian.TFile;
   };
   const isFolder = (file) => {
-    return "children" in file;
+    return file instanceof import_obsidian.TFolder;
   };
   return {
     create_note: async ({ path, content, tags }) => {
-      if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+      if (isExcluded(path)) return `Error: access to ${path} is excluded in settings.`;
       try {
-        const fullContent = tags && tags.length > 0 ? `---
+        let fullContent = content;
+        if (tags && Array.isArray(tags) && tags.length > 0) {
+          fullContent = `---
 tags: [${tags.join(", ")}]
 ---
-${content}` : content;
+${content}`;
+        }
         const file = await app.vault.create(path, fullContent);
         return `Successfully created note at ${file.path}`;
       } catch (error) {
@@ -1069,54 +1073,57 @@ ${content}` : content;
       }
     },
     update_note: async ({ path, new_content }) => {
-      if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+      if (isExcluded(path)) return `Error: access to ${path} is excluded in settings.`;
       try {
         const file = app.vault.getAbstractFileByPath(path);
-        if (file && isFile(file)) {
+        if (isFile(file)) {
           await app.vault.modify(file, new_content);
           return `Successfully updated note at ${path}`;
         }
-        return `Error: File not found at ${path}`;
+        return `Error: file not found at ${path}`;
       } catch (error) {
         return `Error updating note: ${error instanceof Error ? error.message : String(error)}`;
       }
     },
     read_note: async ({ path }) => {
-      if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+      if (isExcluded(path)) return `Error: access to ${path} is excluded in settings.`;
       try {
         const file = app.vault.getAbstractFileByPath(path);
-        if (file && isFile(file)) {
+        if (isFile(file)) {
           return await app.vault.cachedRead(file);
         }
-        return `Error: File not found at ${path}`;
+        return `Error: file not found at ${path}`;
       } catch (error) {
         return `Error reading note: ${error instanceof Error ? error.message : String(error)}`;
       }
     },
-    get_metadata: ({ path }) => {
-      if (isExcluded(path)) return Promise.resolve(`Error: Access to ${path} is excluded in settings.`);
+    get_metadata: (args) => {
+      const path = String(args.path);
+      if (isExcluded(path)) return Promise.resolve(`Error: access to ${path} is excluded in settings.`);
       try {
         const file = app.vault.getAbstractFileByPath(path);
-        if (file && isFile(file)) {
+        if (isFile(file)) {
           const cache = app.metadataCache.getFileCache(file);
           return Promise.resolve(JSON.stringify(cache, null, 2));
         }
-        return Promise.resolve(`Error: File not found at ${path}`);
+        return Promise.resolve(`Error: file not found at ${path}`);
       } catch (error) {
         return Promise.resolve(`Error getting metadata: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
-    list_files: ({ folder_path, recursive }) => {
+    list_files: (args) => {
+      const folder_path = typeof args.folder_path === "string" ? args.folder_path : "/";
+      const recursive = Boolean(args.recursive);
       try {
-        const folder = app.vault.getAbstractFileByPath(folder_path || "/");
-        if (folder && isFolder(folder)) {
+        const folder = app.vault.getAbstractFileByPath(folder_path);
+        if (isFolder(folder)) {
           const results = [];
           const walk = (f) => {
             if (isExcluded(f.path)) return;
-            results.push(`${isFolder(f) ? "[DIR] " : ""}${f.path}`);
-            if (recursive && isFolder(f)) {
+            results.push(`${f instanceof import_obsidian.TFolder ? "[DIR] " : ""}${f.path}`);
+            if (recursive && f instanceof import_obsidian.TFolder) {
               f.children.forEach((child) => {
-                if (isFile(child) || isFolder(child)) walk(child);
+                if (child instanceof import_obsidian.TFile || child instanceof import_obsidian.TFolder) walk(child);
               });
             }
           };
@@ -1124,18 +1131,18 @@ ${content}` : content;
             walk(folder);
           } else {
             folder.children.forEach((child) => {
-              if (isFile(child) || isFolder(child)) walk(child);
+              if (child instanceof import_obsidian.TFile || child instanceof import_obsidian.TFolder) walk(child);
             });
           }
           return Promise.resolve(results.join("\n") || "Folder is empty or all contents are excluded");
         }
-        return Promise.resolve(`Error: Folder not found at ${folder_path}`);
+        return Promise.resolve(`Error: folder not found at ${folder_path}`);
       } catch (error) {
         return Promise.resolve(`Error listing files: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
     create_canvas: async ({ path, nodes }) => {
-      if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+      if (isExcluded(path)) return `Error: access to ${path} is excluded in settings.`;
       try {
         const canvasData = {
           nodes: nodes || [],
@@ -1148,17 +1155,20 @@ ${content}` : content;
       }
     },
     add_node_to_canvas: async ({ path, node }) => {
-      if (isExcluded(path)) return `Error: Access to ${path} is excluded in settings.`;
+      if (isExcluded(path)) return `Error: access to ${path} is excluded in settings.`;
       try {
         const file = app.vault.getAbstractFileByPath(path);
-        if (file && isFile(file)) {
+        if (isFile(file)) {
           const content = await app.vault.read(file);
           const data = JSON.parse(content);
-          data.nodes.push(node);
-          await app.vault.modify(file, JSON.stringify(data, null, 2));
-          return `Successfully added node to canvas at ${path}`;
+          if (data && Array.isArray(data.nodes)) {
+            data.nodes.push(node);
+            await app.vault.modify(file, JSON.stringify(data, null, 2));
+            return `Successfully added node to canvas at ${path}`;
+          }
+          return `Error: invalid canvas format at ${path}`;
         }
-        return `Error: Canvas file not found at ${path}`;
+        return `Error: canvas file not found at ${path}`;
       } catch (error) {
         return `Error adding node to canvas: ${error instanceof Error ? error.message : String(error)}`;
       }
@@ -1171,29 +1181,31 @@ ${content}` : content;
         return `Error creating folder: ${error instanceof Error ? error.message : String(error)}`;
       }
     },
-    execute_command: ({ command_id }) => {
+    execute_command: (args) => {
+      const command_id = String(args.command_id);
       try {
-        const commands = app.commands;
-        if (commands && commands.executeCommandById(command_id)) {
+        const obsidianApp = app;
+        if (obsidianApp.commands && obsidianApp.commands.executeCommandById(command_id)) {
           return Promise.resolve(`Successfully executed command ${command_id}`);
         }
-        return Promise.resolve(`Error: Command ${command_id} not found or failed to execute`);
+        return Promise.resolve(`Error: command ${command_id} not found or failed to execute`);
       } catch (error) {
         return Promise.resolve(`Error executing command: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
     list_commands: () => {
       try {
-        const commands = app.commands;
-        if (!commands || !commands.listCommands) return Promise.resolve("Error: Could not list commands");
-        const list = commands.listCommands().map((c) => `${c.id}: ${c.name}`).join("\n");
-        return Promise.resolve(`Available Commands:
+        const obsidianApp = app;
+        if (!obsidianApp.commands || !obsidianApp.commands.listCommands) return Promise.resolve("Error: could not list commands");
+        const list = obsidianApp.commands.listCommands().map((c) => `${c.id}: ${c.name}`).join("\n");
+        return Promise.resolve(`Available commands:
 ${list}`);
       } catch (error) {
         return Promise.resolve(`Error listing commands: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
-    global_search: async ({ query }) => {
+    global_search: async (args) => {
+      const query = String(args.query);
       try {
         const files = app.vault.getMarkdownFiles();
         const results = [];
@@ -1215,13 +1227,13 @@ ${results.join("\n")}` : "No matches found in the vault";
     get_active_note: async () => {
       try {
         const file = app.workspace.getActiveFile();
-        if (file) {
+        if (isFile(file)) {
           const content = await app.vault.read(file);
-          return `Active File: ${file.path}
+          return `Active file: ${file.path}
 Content:
 ${content}`;
         }
-        return "Error: No active file found";
+        return "Error: no active file found";
       } catch (error) {
         return `Error getting active file: ${error instanceof Error ? error.message : String(error)}`;
       }
@@ -1357,35 +1369,35 @@ var toolDeclarations = [
 ];
 
 // src/suggest.ts
-var import_obsidian = require("obsidian");
-var FileSuggestModal = class extends import_obsidian.FuzzySuggestModal {
+var import_obsidian2 = require("obsidian");
+var FileSuggestModal = class extends import_obsidian2.FuzzySuggestModal {
   onSelect;
   constructor(app, onSelect) {
     super(app);
     this.onSelect = onSelect;
     this.setPlaceholder("Select a file to attach as context...");
   }
-  getItems() {
+  getItems = () => {
     return this.app.vault.getMarkdownFiles();
-  }
-  getItemText(file) {
+  };
+  getItemText = (file) => {
     return file.path;
-  }
-  onChooseItem(file, _evt) {
+  };
+  onChooseItem = (file, _evt) => {
     this.onSelect(file);
-  }
+  };
 };
 
 // src/view.ts
 var THINKING_TIPS = [
-  "Tip: Use # to attach a file for more context.",
-  "Did you know? Gemini can create and edit Obsidian Canvas files.",
-  "Idea: Ask Gemini to summarize your meeting notes.",
-  "Tip: You can exclude sensitive folders in the plugin settings.",
-  "Did you know? Gemini 1.5 Pro has a massive context window.",
-  "Idea: Ask for a mind-map based on your current project.",
-  "Tip: Use @mention logic coming soon for even better workflow.",
-  "Pro-Tip: Clear chat frequently to keep the context focused."
+  "Tip: use # to attach a file for more context.",
+  "Did you know? Gemini can create and edit Obsidian canvas files.",
+  "Idea: ask Gemini to summarize your meeting notes.",
+  "Tip: you can exclude sensitive folders in the plugin settings.",
+  "Did you know? Gemini 1.5 pro has a massive context window.",
+  "Idea: ask for a mind-map based on your current project.",
+  "Tip: use @mention logic coming soon for even better workflow.",
+  "Pro-tip: clear chat frequently to keep the context focused."
 ];
 var THINKING_QUOTES = [
   '"The only way to do great work is to love what you do." - Steve Jobs',
@@ -1395,7 +1407,7 @@ var THINKING_QUOTES = [
   '"Focus on being productive instead of busy." - Tim Ferriss',
   '"Your mind is for having ideas, not holding them." - David Allen'
 ];
-var GeminiChatView = class extends import_obsidian2.ItemView {
+var GeminiChatView = class extends import_obsidian3.ItemView {
   plugin;
   messageContainer;
   inputField;
@@ -1406,7 +1418,7 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
   searchQuery = "";
   showArchived = false;
   lastUserMessage = "";
-  headerTitleEl;
+  headerTitleEl = null;
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -1420,29 +1432,30 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
   getDisplayText() {
     return "Gemini chat";
   }
-  onClose() {
+  async onClose() {
     this.cancelRequest();
     return Promise.resolve();
   }
-  cancelRequest() {
+  onOpen() {
+    this.renderOverview();
+    return Promise.resolve();
+  }
+  cancelRequest = () => {
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
     }
     this.setLoading(false);
-  }
-  setLoading(loading) {
+  };
+  setLoading = (loading) => {
     this.isLoading = loading;
     if (loading) {
       this.containerEl.addClass("is-loading");
     } else {
       this.containerEl.removeClass("is-loading");
     }
-  }
-  onOpen() {
-    this.renderOverview();
-  }
-  renderOverview() {
+  };
+  renderOverview = () => {
     const container = this.contentEl;
     container.empty();
     container.addClass("gemini-chat-view-container");
@@ -1453,14 +1466,16 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
       cls: "clickable-icon" + (this.showArchived ? " is-active" : ""),
       title: "Show archived"
     });
-    (0, import_obsidian2.setIcon)(archiveToggle, "archive");
+    (0, import_obsidian3.setIcon)(archiveToggle, "archive");
     archiveToggle.onclick = () => {
       this.showArchived = !this.showArchived;
       this.renderOverview();
     };
     const newChatBtn = headerActions.createEl("button", { cls: "clickable-icon", title: "New chat" });
-    (0, import_obsidian2.setIcon)(newChatBtn, "plus");
-    newChatBtn.onclick = () => void this.startNewChat();
+    (0, import_obsidian3.setIcon)(newChatBtn, "plus");
+    newChatBtn.onclick = () => {
+      void this.startNewChat();
+    };
     const searchContainer = container.createDiv("gemini-search-container");
     const searchInput = searchContainer.createEl("input", {
       type: "text",
@@ -1469,14 +1484,18 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
     });
     searchInput.value = this.searchQuery;
     searchInput.oninput = (e) => {
-      this.searchQuery = e.target.value;
-      this.renderConversationList(listContainer);
+      const target = e.target;
+      if (target instanceof HTMLInputElement) {
+        this.searchQuery = target.value;
+        this.renderConversationList(listContainer);
+      }
     };
     const listContainer = container.createDiv("gemini-conversation-list");
     this.renderConversationList(listContainer);
-  }
-  renderConversationList(container) {
+  };
+  renderConversationList = (container) => {
     container.empty();
+    if (!this.plugin.conversationManager) return;
     const convs = this.plugin.conversationManager.getConversations(this.showArchived, this.searchQuery);
     if (convs.length === 0) {
       container.createDiv({ text: this.searchQuery ? "No matches found" : "No conversations yet", cls: "gemini-empty-state" });
@@ -1488,35 +1507,45 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
       const info = item.createDiv("gemini-conv-info");
       info.createDiv({ text: conv.title, cls: "gemini-conv-title" });
       info.createDiv({ text: new Date(conv.updatedAt).toLocaleString(), cls: "gemini-conv-date" });
-      info.onclick = () => void this.loadConversation(conv);
+      info.onclick = () => {
+        void this.loadConversation(conv);
+      };
       const actions = item.createDiv("gemini-conv-actions");
       const archiveBtn = actions.createEl("button", { cls: "clickable-icon", title: conv.isArchived ? "Unarchive" : "Archive" });
-      (0, import_obsidian2.setIcon)(archiveBtn, conv.isArchived ? "eye" : "archive");
-      archiveBtn.onclick = async (e) => {
+      (0, import_obsidian3.setIcon)(archiveBtn, conv.isArchived ? "eye" : "archive");
+      archiveBtn.onclick = (e) => {
         e.stopPropagation();
-        this.plugin.conversationManager.archiveConversation(conv.id, !conv.isArchived);
-        await this.plugin.saveSettings();
-        this.renderConversationList(container);
+        if (this.plugin.conversationManager) {
+          this.plugin.conversationManager.archiveConversation(conv.id, !conv.isArchived);
+          void this.plugin.saveSettings().then(() => {
+            this.renderConversationList(container);
+          });
+        }
       };
       const deleteBtn = actions.createEl("button", { cls: "clickable-icon", title: "Delete" });
-      (0, import_obsidian2.setIcon)(deleteBtn, "trash-2");
-      deleteBtn.onclick = async (e) => {
+      (0, import_obsidian3.setIcon)(deleteBtn, "trash-2");
+      deleteBtn.onclick = (e) => {
         e.stopPropagation();
-        this.plugin.conversationManager.deleteConversation(conv.id);
-        await this.plugin.saveSettings();
-        this.renderConversationList(container);
-        new import_obsidian2.Notice("Conversation deleted");
+        if (this.plugin.conversationManager) {
+          this.plugin.conversationManager.deleteConversation(conv.id);
+          void this.plugin.saveSettings().then(() => {
+            this.renderConversationList(container);
+            new import_obsidian3.Notice("Conversation deleted");
+          });
+        }
       };
     });
-  }
-  async startNewChat() {
-    this.currentConversation = this.plugin.conversationManager.createConversation();
-    this.currentConversation.model = this.plugin.settings.modelName;
-    await this.plugin.saveSettings();
-    this.renderChatInterface();
-    await this.initializeChat();
-  }
-  async loadConversation(conv) {
+  };
+  startNewChat = async () => {
+    if (this.plugin.conversationManager) {
+      this.currentConversation = this.plugin.conversationManager.createConversation("New chat");
+      this.currentConversation.model = this.plugin.settings.modelName;
+      await this.plugin.saveSettings();
+      this.renderChatInterface();
+      await this.initializeChat();
+    }
+  };
+  loadConversation = async (conv) => {
     this.currentConversation = conv;
     this.renderChatInterface();
     for (const msg of conv.messages) {
@@ -1530,25 +1559,26 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
       role: m.role,
       parts: m.parts
     })));
-  }
-  renderChatInterface() {
+  };
+  renderChatInterface = () => {
     const container = this.contentEl;
     container.empty();
     const header = container.createDiv("gemini-chat-header");
     const backBtn = header.createEl("button", { cls: "clickable-icon", title: "Back to overview" });
-    (0, import_obsidian2.setIcon)(backBtn, "arrow-left");
+    (0, import_obsidian3.setIcon)(backBtn, "arrow-left");
     backBtn.onclick = () => this.renderOverview();
-    this.headerTitleEl = header.createEl("h4", { text: this.currentConversation?.title || "Gemini AI Agent", cls: "gemini-header-title" });
+    this.headerTitleEl = header.createEl("h4", { text: this.currentConversation?.title || "Gemini AI agent", cls: "gemini-header-title" });
     const modelSelect = header.createEl("select", { cls: "gemini-model-select-ui" });
     this.plugin.availableModels.forEach((mId) => {
       const opt = modelSelect.createEl("option", { text: MODEL_DISPLAY_NAMES[mId] || mId, value: mId });
       if (mId === (this.currentConversation?.model || this.plugin.settings.modelName)) opt.selected = true;
     });
-    modelSelect.onchange = async () => {
+    modelSelect.onchange = () => {
       if (this.currentConversation) {
         this.currentConversation.model = modelSelect.value;
-        await this.plugin.saveSettings();
-        await this.initializeChat(this.currentConversation.messages);
+        void this.plugin.saveSettings().then(() => {
+          void this.initializeChat(this.currentConversation?.messages);
+        });
       }
     };
     this.messageContainer = container.createDiv("gemini-chat-messages");
@@ -1560,7 +1590,7 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
     });
     this.inputField.addEventListener("input", () => {
       this.inputField.setCssProps({ height: "auto" });
-      this.inputField.setCssProps({ height: this.inputField.scrollHeight + "px" });
+      this.inputField.setCssProps({ height: `${this.inputField.scrollHeight}px` });
     });
     this.inputField.addEventListener("keydown", (e) => {
       if (e.key === "#") {
@@ -1568,7 +1598,7 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
           new FileSuggestModal(this.app, (file) => {
             const value = this.inputField.value;
             const lastHashIndex = value.lastIndexOf("#");
-            this.inputField.value = value.substring(0, lastHashIndex) + `[[${file.path}]] `;
+            this.inputField.value = `${value.substring(0, lastHashIndex)}[[${file.path}]] `;
             this.inputField.focus();
             this.inputField.dispatchEvent(new Event("input"));
           }).open();
@@ -1580,30 +1610,32 @@ var GeminiChatView = class extends import_obsidian2.ItemView {
       }
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        this.handleSendMessage();
+        void this.handleSendMessage();
       }
     });
     const sendButton = inputContainer.createEl("button", { cls: "gemini-send-button", title: "Send" });
-    (0, import_obsidian2.setIcon)(sendButton, "send");
-    sendButton.onclick = () => void this.handleSendMessage();
-  }
-  async initializeChat(history = []) {
+    (0, import_obsidian3.setIcon)(sendButton, "send");
+    sendButton.onclick = () => {
+      void this.handleSendMessage();
+    };
+  };
+  initializeChat = async (history = []) => {
     if (this.plugin.genAI) {
       try {
         const modelId = this.currentConversation?.model || this.plugin.settings.modelName;
-        const model = await this.plugin.getModelWithFallback(modelId);
+        const model = this.plugin.getModelWithFallback(modelId);
         const systemInstruction = `You are a professional, autonomous AI agent integrated into an Obsidian vault. 
 Your goal is to help the user manage their knowledge effectively. 
 
-Capabilities & Autonomy:
-1. Proactive Exploration: If you need more context to answer a question, use 'list_files', 'global_search', or 'read_note' immediately without asking for permission.
+Capabilities & autonomy:
+1. Proactive exploration: If you need more context to answer a question, use 'list_files', 'global_search', or 'read_note' immediately without asking for permission.
 2. Organization: When the user asks to "organize", "save", or "research" something, proactively decide to create folders, create notes, or update existing ones.
-3. Structure Awareness: Always keep track of the vault structure. If a task involves multiple files, read them all to ensure consistency.
-4. Tool Usage: You have access to specialized Obsidian tools. Use them strategically to perform actions directly in the vault. 
+3. Structure awareness: Always keep track of the vault structure. If a task involves multiple files, read them all to ensure consistency.
+4. Tool usage: You have access to specialized Obsidian tools. Use them strategically to perform actions directly in the vault. 
 
 Guidelines:
 - If a request is ambiguous, explore the vault first to find relevant information.
-- When creating notes, use clean Markdown and appropriate tags.
+- When creating notes, use clean markdown and appropriate tags.
 - Be concise but thorough. 
 - You act on behalf of the user; if they give you a task that implies vault modification (e.g., "Summarize my meetings from last week into a new note"), do it directly.`;
         const modelWithTools = this.plugin.genAI.getGenerativeModel({
@@ -1620,11 +1652,12 @@ Guidelines:
         }));
         this.chat = modelWithTools.startChat({ history: cleanHistory });
       } catch (error) {
+        this.chat = null;
         await this.appendMessage("agent", `Error initializing chat: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-  }
-  async handleSendMessage() {
+  };
+  handleSendMessage = async () => {
     const originalMessage = this.inputField.value.trim();
     if (!originalMessage || this.isLoading || !this.currentConversation) return;
     this.lastUserMessage = originalMessage;
@@ -1634,7 +1667,7 @@ Guidelines:
       for (const mention of fileMentions) {
         const path = mention.replace("[[", "").replace("]]", "");
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof import_obsidian2.TFile) {
+        if (file instanceof import_obsidian3.TFile) {
           const content = await this.app.vault.cachedRead(file);
           contextPrefix += `
 Content of "${path}":
@@ -1653,9 +1686,9 @@ User request: ${originalMessage}` : originalMessage;
       timestamp: Date.now()
     });
     this.inputField.value = "";
-    this.inputField.style.setProperty("height", "auto");
+    this.inputField.setCssProps({ height: "auto" });
     if (!this.plugin.genAI) {
-      await this.appendMessage("agent", "Error: API Key not configured.");
+      await this.appendMessage("agent", "Error: API key not configured.");
       return;
     }
     if (!this.chat) await this.initializeChat();
@@ -1665,10 +1698,10 @@ User request: ${originalMessage}` : originalMessage;
     const randomQuote = THINKING_QUOTES[Math.floor(Math.random() * THINKING_QUOTES.length)];
     const thinkingMsg = await this.appendMessage("agent", "Thinking...");
     thinkingMsg.addClass("gemini-thinking-wrapper");
-    const contentEl = thinkingMsg.firstElementChild;
-    if (contentEl) {
-      contentEl.empty();
-      const thinkingContainer = contentEl.createDiv("gemini-thinking-container");
+    const firstChild = thinkingMsg.firstElementChild;
+    if (firstChild instanceof HTMLElement) {
+      firstChild.empty();
+      const thinkingContainer = firstChild.createDiv("gemini-thinking-container");
       thinkingContainer.createDiv("gemini-thinking-shimmer").textContent = "Gemini is processing your request...";
       const infoPanel = thinkingContainer.createDiv("gemini-thinking-info");
       infoPanel.createDiv("gemini-thinking-tip").textContent = randomTip;
@@ -1687,13 +1720,26 @@ User request: ${originalMessage}` : originalMessage;
             } catch (error) {
               const errorText = String(error);
               if (errorText.includes("429") || errorText.includes("quota")) {
+                if (errorText.includes("limit: 0")) {
+                  throw new Error("Quota exceeded: daily limit reached for this model. Try switching to a different model (e.g., Gemini 1.5 Flash).", { cause: error });
+                }
                 retryCount++;
                 if (retryCount <= MAX_RETRIES) {
                   let delay = 22e3;
                   const match = errorText.match(/retryDelay":"(\d+)s/);
                   if (match) delay = parseInt(match[1]) * 1e3 + 1e3;
-                  toolStatus.textContent = `Quota exceeded. Retrying in ${Math.round(delay / 1e3)}s... (Attempt ${retryCount}/${MAX_RETRIES})`;
+                  let secondsLeft = Math.round(delay / 1e3);
+                  const interval = setInterval(() => {
+                    secondsLeft--;
+                    if (secondsLeft > 0) {
+                      toolStatus.textContent = `Quota exceeded. Retrying in ${secondsLeft}s... (Attempt ${retryCount}/${MAX_RETRIES})`;
+                    } else {
+                      clearInterval(interval);
+                    }
+                  }, 1e3);
+                  toolStatus.textContent = `Quota exceeded. Retrying in ${secondsLeft}s... (Attempt ${retryCount}/${MAX_RETRIES})`;
                   await new Promise((resolve) => setTimeout(resolve, delay));
+                  clearInterval(interval);
                   continue;
                 }
               }
@@ -1703,7 +1749,7 @@ User request: ${originalMessage}` : originalMessage;
           throw new Error("Max retries exceeded for quota limit.");
         };
         result = await sendWithRetry(finalPrompt);
-        response = await result.response;
+        response = result.response;
         let iterations = 0;
         const MAX_ITERATIONS = 5;
         while (iterations < MAX_ITERATIONS && response.candidates && response.candidates[0].content.parts.some((part) => !!part.functionCall)) {
@@ -1717,11 +1763,11 @@ User request: ${originalMessage}` : originalMessage;
               const toolResults2 = toolCalls.map((part) => ({
                 functionResponse: {
                   name: part.functionCall.name,
-                  response: { result: "Error: User denied permission to execute this tool." }
+                  response: { result: "Error: user denied permission to execute this tool." }
                 }
               }));
               result = await sendWithRetry(toolResults2);
-              response = await result.response;
+              response = result.response;
               continue;
             }
           }
@@ -1741,7 +1787,7 @@ User request: ${originalMessage}` : originalMessage;
             }
           }
           result = await sendWithRetry(toolResults);
-          response = await result.response;
+          response = result.response;
         }
         const responseText = response.text();
         thinkingMsg.remove();
@@ -1752,29 +1798,30 @@ User request: ${originalMessage}` : originalMessage;
             parts: [{ text: responseText }],
             timestamp: Date.now()
           });
-          if (this.currentConversation.title === "New Chat") {
+          if (this.currentConversation.title === "New chat") {
             await this.generateAutoTitle(originalMessage, responseText);
           }
         }
         await this.plugin.saveSettings();
       } catch (error) {
         if (thinkingMsg) thinkingMsg.remove();
-        if (error.name === "AbortError") {
+        if (error instanceof Error && error.name === "AbortError") {
           await this.appendMessage("agent", "_Request cancelled_");
         } else {
-          await this.appendMessage("agent", `**Error:** ${error.message}`);
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          await this.appendMessage("agent", `**Error:** ${errorMsg}`);
         }
       } finally {
         this.abortController = null;
         this.setLoading(false);
       }
     }
-  }
-  async generateAutoTitle(userMsg, aiMsg) {
+  };
+  generateAutoTitle = async (userMsg, aiMsg) => {
     if (!this.plugin.genAI || !this.currentConversation) return;
     try {
       const model = this.plugin.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const prompt = `Generiere einen sehr kurzen, pr\xE4gnanten Titel (max 5 W\xF6rter) f\xFCr diesen Chat-Anfang. Gib NUR den Titel zur\xFCck, keine Anf\xFChrungszeichen:
+      const prompt = `Generiere einen sehr kurzen, pr\xE4gnanten Titel (max 5 W\xF6rter) f\xFCr dieser Chat-Anfang. Gib NUR den Titel zur\xFCck, keine Anf\xFChrungszeichen:
 Nutzer: ${userMsg}
 KI: ${aiMsg}`;
       const result = await model.generateContent(prompt);
@@ -1787,8 +1834,8 @@ KI: ${aiMsg}`;
     } catch (e) {
       console.error("Failed to generate title", e);
     }
-  }
-  async requestToolPermission(toolCalls) {
+  };
+  requestToolPermission = (toolCalls) => {
     return new Promise((resolve) => {
       const permissionEl = this.messageContainer.createDiv("gemini-tool-permission-card");
       permissionEl.createDiv({ text: "The agent wants to execute the following tools:", cls: "gemini-permission-header" });
@@ -1814,28 +1861,29 @@ KI: ${aiMsg}`;
         resolve(false);
       };
     });
-  }
-  async appendMessage(sender, text, scroll = true) {
+  };
+  appendMessage = async (sender, text, scroll = true) => {
     const msgEl = this.messageContainer.createDiv(`gemini-message gemini-message-${sender}`);
     const contentEl = msgEl.createDiv("gemini-message-content");
     if (sender === "agent" && text !== "Thinking..." && !text.includes("Gemini is processing")) {
-      await import_obsidian2.MarkdownRenderer.render(this.app, text, contentEl, "", this);
+      await import_obsidian3.MarkdownRenderer.render(this.app, text, contentEl, "", this);
       const actionsEl = msgEl.createDiv("gemini-message-actions");
       const copyBtn = actionsEl.createEl("button", { cls: "gemini-action-btn", title: "Copy to clipboard" });
-      (0, import_obsidian2.setIcon)(copyBtn, "copy");
+      (0, import_obsidian3.setIcon)(copyBtn, "copy");
       copyBtn.onclick = () => {
-        navigator.clipboard.writeText(text);
-        new import_obsidian2.Notice("Copied to clipboard");
+        void navigator.clipboard.writeText(text).then(() => {
+          new import_obsidian3.Notice("Copied to clipboard");
+        });
       };
       const retryBtn = actionsEl.createEl("button", { cls: "gemini-action-btn", title: "Regenerate" });
-      (0, import_obsidian2.setIcon)(retryBtn, "refresh-cw");
+      (0, import_obsidian3.setIcon)(retryBtn, "refresh-cw");
       retryBtn.onclick = () => {
         if (this.currentConversation && this.currentConversation.messages.length > 0) {
           this.currentConversation.messages.pop();
           const lastUserMsg = this.currentConversation.messages.pop();
           if (lastUserMsg) {
             this.inputField.value = lastUserMsg.parts[0].text.split("\nUser request: ").pop() || lastUserMsg.parts[0].text;
-            this.handleSendMessage();
+            void this.handleSendMessage();
           }
         }
       };
@@ -1844,7 +1892,7 @@ KI: ${aiMsg}`;
     }
     if (scroll) this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
     return msgEl;
-  }
+  };
 };
 
 // node_modules/.pnpm/uuid@13.0.0/node_modules/uuid/dist/stringify.js
@@ -1905,68 +1953,56 @@ var v4_default = v4;
 // src/conversations.ts
 var ConversationManager = class {
   conversations = [];
-  constructor(data) {
-    if (data && Array.isArray(data.conversations)) {
-      this.conversations = data.conversations;
-    }
+  constructor(settings) {
+    this.conversations = settings.conversations || [];
   }
-  createConversation(title = "New Chat") {
+  getConversations = (archived = false, query = "") => {
+    let filtered = this.conversations.filter((c) => !!c.isArchived === archived);
+    if (query) {
+      const lower = query.toLowerCase();
+      filtered = filtered.filter((c) => c.title.toLowerCase().includes(lower));
+    }
+    return filtered.sort((a, b) => b.updatedAt - a.updatedAt);
+  };
+  getConversation = (id) => {
+    return this.conversations.find((c) => c.id === id);
+  };
+  createConversation = (title = "New chat") => {
     const newConv = {
       id: v4_default(),
       title,
       messages: [],
-      updatedAt: Date.now(),
-      isArchived: false
+      model: "auto",
+      updatedAt: Date.now()
     };
-    this.conversations.unshift(newConv);
+    this.conversations.push(newConv);
     return newConv;
-  }
-  getConversations(includeArchived = false, search = "") {
-    return this.conversations.filter((c) => includeArchived || !c.isArchived).filter((c) => c.title.toLowerCase().includes(search.toLowerCase())).sort((a, b) => b.updatedAt - a.updatedAt);
-  }
-  getConversation(id) {
-    return this.conversations.find((c) => c.id === id);
-  }
-  updateConversation(conv) {
+  };
+  updateConversation = (conv) => {
     const index = this.conversations.findIndex((c) => c.id === conv.id);
     if (index !== -1) {
-      conv.updatedAt = Date.now();
-      if (conv.messages.length > 20) {
-        conv.messages = conv.messages.slice(-20);
-      }
-      this.conversations[index] = conv;
+      this.conversations[index] = { ...conv, updatedAt: Date.now() };
     }
-  }
-  garbageCollect(maxConversations = 50, maxAgeDays = 30) {
-    const now = Date.now();
-    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1e3;
-    this.conversations = this.conversations.filter((c) => {
-      if (c.isArchived) return true;
-      const age = now - c.updatedAt;
-      return age < maxAgeMs;
-    });
-    if (this.conversations.length > maxConversations) {
-      const active = this.conversations.filter((c) => !c.isArchived);
-      const archived = this.conversations.filter((c) => c.isArchived);
-      if (active.length > maxConversations) {
-        const truncatedActive = active.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, maxConversations);
-        this.conversations = [...truncatedActive, ...archived];
-      }
-    }
-  }
-  deleteConversation(id) {
+  };
+  deleteConversation = (id) => {
     this.conversations = this.conversations.filter((c) => c.id !== id);
-  }
-  archiveConversation(id, archive = true) {
+  };
+  garbageCollect = () => {
+    const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1e3;
+    this.conversations = this.conversations.filter(
+      (c) => c.isArchived || c.updatedAt > oneMonthAgo || c.messages.length > 0
+    );
+  };
+  archiveConversation = (id, archive = true) => {
     const conv = this.getConversation(id);
     if (conv) {
       conv.isArchived = archive;
       this.updateConversation(conv);
     }
-  }
-  toJSON() {
+  };
+  toJSON = () => {
     return this.conversations;
-  }
+  };
 };
 
 // src/main.ts
@@ -1975,12 +2011,12 @@ var GEMINI_ICON = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org
 <path d="M12 22C12 22 11.5 17 8 13.5C4.5 10 0 9.5 0 9.5C0 9.5 4.5 9 8 5.5C11.5 2 12 0 12 0C12 0 12.5 2 16 5.5C19.5 9 24 9.5 24 9.5C24 9.5 19.5 10 16 13.5C12.5 17 12 22 12 22Z" fill="currentColor"/>
 </svg>`;
 var MODEL_DISPLAY_NAMES = {
-  "gemini-2.0-flash": "Gemini 2.0 Flash (Fast)",
-  "gemini-2.0-flash-exp": "Gemini 2.0 Flash Experimental",
-  "gemini-1.5-pro": "Gemini 1.5 Pro (Complex Tasks)",
-  "gemini-1.5-flash": "Gemini 1.5 Flash (Efficient)",
-  "gemini-1.5-flash-8b": "Gemini 1.5 Flash 8B (Super Fast)",
-  "auto": "\u2728 Auto-Select (Smart Fallback)"
+  "gemini-2.0-flash": "Gemini 2.0 flash (fast)",
+  "gemini-2.0-flash-exp": "Gemini 2.0 flash experimental",
+  "gemini-1.5-pro": "Gemini 1.5 pro (complex tasks)",
+  "gemini-1.5-flash": "Gemini 1.5 flash (efficient)",
+  "gemini-1.5-flash-8b": "Gemini 1.5 flash 8b (super fast)",
+  "auto": "\u2728 Auto-select (smart fallback)"
 };
 var DEFAULT_SETTINGS = {
   apiKey: "",
@@ -1989,18 +2025,18 @@ var DEFAULT_SETTINGS = {
   autoAcceptTools: true,
   conversations: []
 };
-var GeminiAgentPlugin2 = class extends import_obsidian3.Plugin {
-  settings;
+var GeminiAgentPlugin2 = class extends import_obsidian4.Plugin {
+  settings = DEFAULT_SETTINGS;
   genAI = null;
   availableModels = ["auto", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"];
-  conversationManager;
-  async onload() {
+  conversationManager = null;
+  onload = async () => {
     await this.loadSettings();
     this.conversationManager = new ConversationManager(this.settings);
     this.conversationManager.garbageCollect();
     await this.logToFile("Plugin loading...");
     await this.refreshModels();
-    (0, import_obsidian3.addIcon)("gemini-sparkle", GEMINI_ICON);
+    (0, import_obsidian4.addIcon)("gemini-sparkle", GEMINI_ICON);
     this.registerView(
       VIEW_TYPE_GEMINI_CHAT,
       (leaf) => new GeminiChatView(leaf, this)
@@ -2025,7 +2061,7 @@ var GeminiAgentPlugin2 = class extends import_obsidian3.Plugin {
     this.addCommand({
       id: "gemini-debug-info",
       name: "Debug Gemini plugin state",
-      callback: async () => {
+      callback: () => {
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GEMINI_CHAT);
         const status = `
 					API Key set: ${!!this.settings.apiKey}
@@ -2033,17 +2069,19 @@ var GeminiAgentPlugin2 = class extends import_obsidian3.Plugin {
 					Available models: ${this.availableModels.length}
 					Active leaves: ${leaves.length}
 				`;
-        await this.logToFile(`Debug Info requested: ${status}`);
-        new import_obsidian3.Notice(`Gemini Debug: ${leaves.length} leaves found. Check log file for details.`);
+        void this.logToFile(`Debug info requested: ${status}`).then(() => {
+          new import_obsidian4.Notice(`Gemini debug: ${leaves.length} leaves found. Check log file for details.`);
+        });
       }
     });
     this.addCommand({
       id: "refresh-gemini-models",
       name: "Refresh available models",
-      callback: async () => {
-        await this.refreshModels();
-        await this.logToFile("Models refreshed manually");
-        new import_obsidian3.Notice("Gemini models refreshed");
+      callback: () => {
+        void this.refreshModels().then(() => {
+          void this.logToFile("Models refreshed manually");
+          new import_obsidian4.Notice("Gemini models refreshed");
+        });
       }
     });
     this.addCommand({
@@ -2051,7 +2089,7 @@ var GeminiAgentPlugin2 = class extends import_obsidian3.Plugin {
       name: "Summarize current note",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
-        if (file) {
+        if (file instanceof import_obsidian4.TFile) {
           if (!checking) {
             void this.summarizeNote(file);
           }
@@ -2062,39 +2100,40 @@ var GeminiAgentPlugin2 = class extends import_obsidian3.Plugin {
     });
     this.addSettingTab(new GeminiAgentSettingTab(this.app, this));
     await this.logToFile("Plugin loaded successfully");
-  }
-  async refreshModels() {
+  };
+  refreshModels = async () => {
     if (!this.genAI) return;
     try {
-      const response = await (0, import_obsidian3.requestUrl)({
+      const response = await (0, import_obsidian4.requestUrl)({
         url: `https://generativelanguage.googleapis.com/v1beta/models?key=${this.settings.apiKey}`,
         method: "GET"
       });
       const data = response.json;
-      if (data.models) {
+      if (data.models && Array.isArray(data.models)) {
         const apiModels = data.models.map((m) => m.name.replace("models/", "")).filter((name) => name.includes("gemini"));
         this.availableModels = ["auto", ...apiModels];
       }
     } catch (error) {
       console.error("Failed to fetch models:", error);
     }
-  }
-  async getModelWithFallback(preferredModel) {
+  };
+  getModelWithFallback = (preferredModel) => {
     if (!this.genAI) throw new Error("GenAI not initialized");
-    let modelsToTry = [preferredModel];
+    const modelsToTry = [preferredModel];
     if (preferredModel === "auto" || preferredModel === "") {
-      modelsToTry = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"];
+      modelsToTry.length = 0;
+      modelsToTry.push("gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash");
     } else {
       if (!modelsToTry.includes("gemini-1.5-flash")) modelsToTry.push("gemini-1.5-flash");
     }
     let lastError = null;
     for (const modelName of modelsToTry) {
       try {
-        const model = this.genAI.getGenerativeModel({ model: modelName });
-        return model;
+        return this.genAI.getGenerativeModel({ model: modelName });
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        if (lastError.message?.includes("429") || lastError.message?.includes("quota") || lastError.message?.includes("not found")) {
+        const msg = lastError.message || "";
+        if (msg.includes("429") || msg.includes("quota") || msg.includes("not found")) {
           console.warn(`Model ${modelName} failed, trying fallback...`, lastError);
           continue;
         }
@@ -2102,32 +2141,32 @@ var GeminiAgentPlugin2 = class extends import_obsidian3.Plugin {
       }
     }
     throw lastError || new Error("Failed to initialize model");
-  }
-  async summarizeNote(file) {
-    if (!this.genAI || !this.settings) {
-      new import_obsidian3.Notice("Gemini API key not configured");
+  };
+  summarizeNote = async (file) => {
+    if (!this.genAI) {
+      new import_obsidian4.Notice("Gemini API key not configured");
       return;
     }
-    new import_obsidian3.Notice(`Summarizing ${file.basename}...`);
+    new import_obsidian4.Notice(`Summarizing ${file.basename}...`);
     try {
       const content = await this.app.vault.read(file);
-      const model = await this.getModelWithFallback(this.settings.modelName);
+      const model = this.getModelWithFallback(this.settings.modelName);
       const prompt = `Fasse folgende Notiz kurz und pr\xE4gnant zusammen:
 
 ${content}`;
       const result = await model.generateContent(prompt);
-      const response = await result.response;
+      const response = result.response;
       const summary = response.text();
       await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
         frontmatter["summary"] = summary;
       });
-      new import_obsidian3.Notice("Summary added to frontmatter");
+      new import_obsidian4.Notice("Summary added to frontmatter");
     } catch (error) {
-      new import_obsidian3.Notice(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian4.Notice(`Error: ${error instanceof Error ? error.message : String(error)}`);
       console.error(error);
     }
-  }
-  async logToFile(message, isError = false) {
+  };
+  logToFile = async (message, isError = false) => {
     const timestamp = (/* @__PURE__ */ new Date()).toISOString();
     const logLine = `[${timestamp}] ${isError ? "ERROR" : "INFO"} ${message}
 `;
@@ -2144,8 +2183,8 @@ ${content}`;
     } catch (e) {
       console.error("Failed to write to log file:", e);
     }
-  }
-  async activateView(center = false) {
+  };
+  activateView = async (center = false) => {
     try {
       await this.logToFile(`Activating view (center: ${center})...`);
       const { workspace } = this.app;
@@ -2171,50 +2210,49 @@ ${content}`;
       }
       if (leaf) {
         await this.logToFile("Revealing leaf");
-        workspace.revealLeaf(leaf);
-        new import_obsidian3.Notice("Gemini chat opened");
+        await workspace.revealLeaf(leaf);
+        new import_obsidian4.Notice("Gemini chat opened");
       } else {
         await this.logToFile("Failed to find or create leaf (leaf is null)", true);
-        new import_obsidian3.Notice("Error: Could not open Gemini chat. See log file.");
+        new import_obsidian4.Notice("Error: could not open Gemini chat. See log file.");
       }
     } catch (error) {
-      await this.logToFile(`CRITICAL ERROR in activateView: ${error.message}`, true);
-      if (error.stack) await this.logToFile(`Stack: ${error.stack}`, true);
-      new import_obsidian3.Notice("Critical error opening Gemini chat. Check log file.");
+      const msg = error instanceof Error ? error.message : String(error);
+      await this.logToFile(`CRITICAL ERROR in activateView: ${msg}`, true);
+      if (error instanceof Error && error.stack) await this.logToFile(`Stack: ${error.stack}`, true);
+      new import_obsidian4.Notice("Critical error opening Gemini chat. Check log file.");
     }
-  }
-  onunload() {
+  };
+  onunload = () => {
     console.debug("Gemini agent plugin unloaded");
-  }
-  async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  };
+  loadSettings = async () => {
+    const loadedData = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
     const secretKey = this.app.secretStorage.getSecret("gemini-api-key");
-    if (secretKey) {
+    if (typeof secretKey === "string" && secretKey !== "") {
       this.settings.apiKey = secretKey;
     }
     if (this.settings.apiKey) {
       this.genAI = new GoogleGenerativeAI(this.settings.apiKey);
     }
-  }
-  async saveSettings() {
+  };
+  saveSettings = async () => {
     if (this.conversationManager) {
       this.settings.conversations = this.conversationManager.toJSON();
     }
     await this.saveData(this.settings);
     if (this.settings.apiKey) {
       this.app.secretStorage.setSecret("gemini-api-key", this.settings.apiKey);
-    } else {
-      this.app.secretStorage.setSecret("gemini-api-key", "");
-    }
-    if (this.settings.apiKey) {
       this.genAI = new GoogleGenerativeAI(this.settings.apiKey);
     } else {
+      this.app.secretStorage.setSecret("gemini-api-key", "");
       this.genAI = null;
     }
-    new import_obsidian3.Notice("Gemini settings saved");
-  }
+    new import_obsidian4.Notice("Gemini settings saved");
+  };
 };
-var GeminiAgentSettingTab = class extends import_obsidian3.PluginSettingTab {
+var GeminiAgentSettingTab = class extends import_obsidian4.PluginSettingTab {
   plugin;
   constructor(app, plugin) {
     super(app, plugin);
@@ -2223,32 +2261,32 @@ var GeminiAgentSettingTab = class extends import_obsidian3.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian3.Setting(containerEl).setHeading().setName("Gemini AI agent settings");
-    new import_obsidian3.Setting(containerEl).setName("Google Gemini API key").setDesc("Enter your Google Gemini API key. It will be stored securely in your system keychain.").addText(
-      (text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
+    new import_obsidian4.Setting(containerEl).setHeading().setName("Gemini AI agent settings");
+    new import_obsidian4.Setting(containerEl).setName("Google Gemini API key").setDesc("Enter your Google Gemini API key. It will be stored securely in your system keychain.").addText(
+      (text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.apiKey).onChange((value) => {
         this.plugin.settings.apiKey = value;
-        await this.plugin.saveSettings();
+        void this.plugin.saveSettings();
       }).inputEl.type = "password"
     );
-    new import_obsidian3.Setting(containerEl).setName("Model").setDesc("Choose the Gemini model to use.").addDropdown((dropdown) => {
+    new import_obsidian4.Setting(containerEl).setName("Model").setDesc("Choose the Gemini model to use.").addDropdown((dropdown) => {
       this.plugin.availableModels.forEach((model) => {
         dropdown.addOption(model, MODEL_DISPLAY_NAMES[model] || model);
       });
-      dropdown.setValue(this.plugin.settings.modelName).onChange(async (value) => {
+      dropdown.setValue(this.plugin.settings.modelName).onChange((value) => {
         this.plugin.settings.modelName = value;
-        await this.plugin.saveSettings();
+        void this.plugin.saveSettings();
       });
     });
-    new import_obsidian3.Setting(containerEl).setName("Auto-accept tools").setDesc("If enabled, the agent can execute tools automatically. If disabled, you will be asked to approve each action in the chat.").addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.autoAcceptTools).onChange(async (value) => {
+    new import_obsidian4.Setting(containerEl).setName("Auto-accept tools").setDesc("If enabled, the agent can execute tools automatically. If disabled, you will be asked to approve each action in the chat.").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.autoAcceptTools).onChange((value) => {
         this.plugin.settings.autoAcceptTools = value;
-        await this.plugin.saveSettings();
+        void this.plugin.saveSettings();
       })
     );
-    new import_obsidian3.Setting(containerEl).setName("Excluded paths").setDesc('Comma-separated list of paths or folders to exclude from the AI agent (e.g. "Private/, SecretNote.md").').addTextArea(
-      (text) => text.setPlaceholder("Enter paths to exclude").setValue(this.plugin.settings.excludedPaths).onChange(async (value) => {
+    new import_obsidian4.Setting(containerEl).setName("Excluded paths").setDesc('Comma-separated list of paths or folders to exclude from the AI agent (e.g. "Private/, SecretNote.md").').addTextArea(
+      (text) => text.setPlaceholder("Enter paths to exclude").setValue(this.plugin.settings.excludedPaths).onChange((value) => {
         this.plugin.settings.excludedPaths = value;
-        await this.plugin.saveSettings();
+        void this.plugin.saveSettings();
       })
     );
   }

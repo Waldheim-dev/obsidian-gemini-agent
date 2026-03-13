@@ -59,8 +59,9 @@ export class GeminiChatView extends ItemView {
 		return Promise.resolve();
 	}
 
-	async onOpen(): Promise<void> {
+	onOpen(): Promise<void> {
 		this.renderOverview();
+		return Promise.resolve();
 	}
 
 	cancelRequest = (): void => {
@@ -390,7 +391,7 @@ Guidelines:
 				const sendWithRetry = async (prompt: string | Part[] | Array<{ functionResponse: { name: string; response: { result: string } } }>): Promise<{ response: { text: () => string; candidates?: Array<{ content: { parts: Part[] } }> } }> => {
 					while (retryCount <= MAX_RETRIES) {
 						try {
-							return await this.chat!.sendMessage(prompt);
+							return await this.chat.sendMessage(prompt);
 						} catch (error) {
 							const errorText = String(error);
 							if (errorText.includes('429') || errorText.includes('quota')) {
@@ -427,7 +428,7 @@ Guidelines:
 				};
 
 				result = await sendWithRetry(finalPrompt);
-				response = await result.response;
+				response = result.response;
 				
 				let iterations = 0;
 				const MAX_ITERATIONS = 5;
@@ -445,12 +446,12 @@ Guidelines:
 						if (!allowed) {
 							const toolResults = toolCalls.map((part: Part) => ({
 								functionResponse: { 
-									name: part.functionCall!.name, 
+									name: part.functionCall.name, 
 									response: { result: "Error: user denied permission to execute this tool." } 
 								}
 							}));
 							result = await sendWithRetry(toolResults);
-							response = await result.response;
+							response = result.response;
 							continue;
 						}
 					}
@@ -473,10 +474,11 @@ Guidelines:
 						}
 					}
 					result = await sendWithRetry(toolResults);
-					response = await result.response;
-				}
+					response = result.response;
+					}
 
-				const responseText = response.text();
+					const responseText = response.text();
+
 				thinkingMsg.remove();
 
 				if (responseText) {

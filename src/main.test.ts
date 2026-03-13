@@ -122,8 +122,9 @@ describe('GeminiAgentPlugin', () => {
 		expect(plugin.availableModels).toContain('gemini-pro');
 	});
 
-	it('should throw if all models fail in fallback', async () => {
+	it('should throw if all models fail in fallback', () => {
 		plugin.genAI = { getGenerativeModel: vi.fn().mockImplementation(() => { throw new Error('fail'); }) } as any;
+
 		expect(() => plugin.getModelWithFallback('auto')).toThrow();
 	});
 

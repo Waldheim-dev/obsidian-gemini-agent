@@ -11,6 +11,11 @@ export interface CanvasNode {
 	file?: string;
 }
 
+export interface CanvasData {
+	nodes: CanvasNode[];
+	edges: unknown[];
+}
+
 export interface ObsidianCommand {
 	id: string;
 	name: string;
@@ -94,21 +99,21 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 				return `Error reading note: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		get_metadata: async (args): Promise<string> => {
+		get_metadata: (args): Promise<string> => {
 			const path = String(args.path);
-			if (isExcluded(path)) return `Error: access to ${path} is excluded in settings.`;
+			if (isExcluded(path)) return Promise.resolve(`Error: access to ${path} is excluded in settings.`);
 			try {
 				const file = app.vault.getAbstractFileByPath(path);
 				if (isFile(file)) {
 					const cache = app.metadataCache.getFileCache(file);
-					return JSON.stringify(cache, null, 2);
+					return Promise.resolve(JSON.stringify(cache, null, 2));
 				}
-				return `Error: file not found at ${path}`;
+				return Promise.resolve(`Error: file not found at ${path}`);
 			} catch (error) {
-				return `Error getting metadata: ${error instanceof Error ? error.message : String(error)}`;
+				return Promise.resolve(`Error getting metadata: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
-		list_files: async (args): Promise<string> => {
+		list_files: (args): Promise<string> => {
 			const folder_path = typeof args.folder_path === 'string' ? args.folder_path : '/';
 			const recursive = Boolean(args.recursive);
 			try {
@@ -134,11 +139,11 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 						});
 					}
 
-					return results.join('\n') || 'Folder is empty or all contents are excluded';
+					return Promise.resolve(results.join('\n') || 'Folder is empty or all contents are excluded');
 				}
-				return `Error: folder not found at ${folder_path}`;
+				return Promise.resolve(`Error: folder not found at ${folder_path}`);
 			} catch (error) {
-				return `Error listing files: ${error instanceof Error ? error.message : String(error)}`;
+				return Promise.resolve(`Error listing files: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 		create_canvas: async ({ path, nodes }): Promise<string> => {
@@ -160,7 +165,7 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 				const file = app.vault.getAbstractFileByPath(path);
 				if (isFile(file)) {
 					const content = await app.vault.read(file);
-					const data = JSON.parse(content);
+					const data = JSON.parse(content) as CanvasData;
 					if (data && Array.isArray(data.nodes)) {
 						data.nodes.push(node);
 						await app.vault.modify(file, JSON.stringify(data, null, 2));
@@ -181,28 +186,28 @@ export const getObsidianTools = (app: App, excludedPaths: string[] = []): Obsidi
 				return `Error creating folder: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		},
-		execute_command: async (args): Promise<string> => {
+		execute_command: (args): Promise<string> => {
 			const command_id = String(args.command_id);
 			try {
 				const obsidianApp = app as ObsidianApp;
 				if (obsidianApp.commands && obsidianApp.commands.executeCommandById(command_id)) {
-					return `Successfully executed command ${command_id}`;
+					return Promise.resolve(`Successfully executed command ${command_id}`);
 				}
-				return `Error: command ${command_id} not found or failed to execute`;
+				return Promise.resolve(`Error: command ${command_id} not found or failed to execute`);
 			} catch (error) {
-				return `Error executing command: ${error instanceof Error ? error.message : String(error)}`;
+				return Promise.resolve(`Error executing command: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
-		list_commands: async (): Promise<string> => {
+		list_commands: (): Promise<string> => {
 			try {
 				const obsidianApp = app as ObsidianApp;
-				if (!obsidianApp.commands || !obsidianApp.commands.listCommands) return 'Error: could not list commands';
+				if (!obsidianApp.commands || !obsidianApp.commands.listCommands) return Promise.resolve('Error: could not list commands');
 				const list = obsidianApp.commands.listCommands()
 					.map((c: ObsidianCommand) => `${c.id}: ${c.name}`)
 					.join('\n');
-				return `Available commands:\n${list}`;
+				return Promise.resolve(`Available commands:\n${list}`);
 			} catch (error) {
-				return `Error listing commands: ${error instanceof Error ? error.message : String(error)}`;
+				return Promise.resolve(`Error listing commands: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		},
 		global_search: async (args): Promise<string> => {

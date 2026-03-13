@@ -119,16 +119,16 @@ describe('GeminiChatView', () => {
 		expect(view.showArchived).toBe(true);
 	});
 
-	it('should handle conversation actions', async () => {
+	it('should handle conversation actions', () => {
 		const conv = { id: 'c1', title: 'C1', updatedAt: Date.now(), messages: [], isArchived: false } as Conversation;
-		(mockPlugin.conversationManager!.getConversations as any).mockReturnValue([conv]);
+		(mockPlugin.conversationManager.getConversations as any).mockReturnValue([conv]);
 		view.renderOverview();
 		
-		await view.plugin.conversationManager!.archiveConversation('c1', true);
-		expect(mockPlugin.conversationManager!.archiveConversation).toHaveBeenCalledWith('c1', true);
+		view.plugin.conversationManager.archiveConversation('c1', true);
+		expect(mockPlugin.conversationManager.archiveConversation).toHaveBeenCalledWith('c1', true);
 		
-		view.plugin.conversationManager!.deleteConversation('c1');
-		expect(mockPlugin.conversationManager!.deleteConversation).toHaveBeenCalledWith('c1');
+		view.plugin.conversationManager.deleteConversation('c1');
+		expect(mockPlugin.conversationManager.deleteConversation).toHaveBeenCalledWith('c1');
 	});
 
 	it('should handle model selection change', async () => {
@@ -174,7 +174,7 @@ describe('GeminiChatView', () => {
 		const promise = view.requestToolPermission(toolCalls);
 		
 		const allowBtn = findBtnRecursive(view.messageContainer, 'Allow all');
-		if (allowBtn) allowBtn.onclick!(new MouseEvent('click'));
+		if (allowBtn) allowBtn.onclick(new MouseEvent('click'));
 		
 		const result = await promise;
 		expect(result).toBe(true);
@@ -188,7 +188,7 @@ describe('GeminiChatView', () => {
 		const promise = view.requestToolPermission(toolCalls);
 		
 		const denyBtn = findBtnRecursive(view.messageContainer, 'Cancel');
-		if (denyBtn) denyBtn.onclick!(new MouseEvent('click'));
+		if (denyBtn) denyBtn.onclick(new MouseEvent('click'));
 		
 		const result = await promise;
 		expect(result).toBe(false);
@@ -244,13 +244,15 @@ describe('GeminiChatView', () => {
 		expect(view.searchQuery).toBe('test');
 	});
 
-	it('should handle initializeChat error', async () => {
+	it('should handle initializeChat error', () => {
 		(mockPlugin.getModelWithFallback as any).mockImplementation(() => { throw new Error('Init error'); });
+
 		const freshView = new GeminiChatView(mockLeaf, mockPlugin);
 		(freshView as any).app = mockApp;
 		freshView.plugin.genAI = mockPlugin.genAI;
 		freshView.renderChatInterface();
-		await freshView.initializeChat();
-		expect((freshView as any).chat).toBeNull();
+		void freshView.initializeChat();
+		expect(freshView.chat).toBeNull();
 	});
+
 });

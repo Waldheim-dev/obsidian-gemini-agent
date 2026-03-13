@@ -187,7 +187,7 @@ export default class GeminiAgentPlugin extends Plugin {
 			
 			const prompt = `Fasse folgende Notiz kurz und prägnant zusammen:\n\n${content}`;
 			const result = await model.generateContent(prompt);
-			const response = await result.response;
+			const response = result.response;
 			const summary = response.text();
 			
 			await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
@@ -250,7 +250,7 @@ export default class GeminiAgentPlugin extends Plugin {
 
 			if (leaf) {
 				await this.logToFile('Revealing leaf');
-				workspace.revealLeaf(leaf);
+				await workspace.revealLeaf(leaf);
 				new Notice('Gemini chat opened');
 			} else {
 				await this.logToFile('Failed to find or create leaf (leaf is null)', true);
